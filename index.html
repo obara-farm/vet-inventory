@@ -203,6 +203,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     </div>
   </div>
   <button class="btn btn-primary mt8" onclick="openModal('modal-treat')">＋ 処置を登録</button>
+  <button class="btn btn-secondary mt8" onclick="openFarmTreat()" style="border-color:var(--info);color:var(--info);">🏡 農場処置（複数頭）</button>
   <button class="btn btn-secondary mt8" onclick="openModal('modal-karte')" style="border-color:var(--purple);color:var(--purple);">📄 カルテ印刷</button>
   <button class="btn btn-secondary mt8" onclick="openNenpo()" style="border-color:var(--info);color:var(--info);">📊 診療年報</button>
 </div>
@@ -211,7 +212,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
 <div class="page" id="page-treat">
   <div class="section-header">
     <div class="section-title">処置記録</div>
-    <button class="btn btn-primary btn-sm" onclick="openModal('modal-treat')">＋ 処置</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary btn-sm" onclick="openFarmTreat()" style="border-color:var(--info);color:var(--info);">🏡 農場</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-treat')">＋ 処置</button>
+    </div>
   </div>
   <input class="search-box" placeholder="牛名・耳標で検索..." oninput="renderTreatList(this.value)" id="treat-search">
   <div id="treat-list"></div>
@@ -365,6 +369,73 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     <button class="btn btn-primary" onclick="saveOkiGusuri()">出庫登録</button>
   </div>
 </div>
+
+<!-- 農場処置（複数頭一括）モーダル -->
+<div class="modal-overlay" id="modal-farm-treat">
+  <div class="modal" style="max-width:min(98vw,520px);">
+    <div class="modal-title">
+      🏡 農場処置（複数頭一括）
+      <button class="modal-close" onclick="closeModal('modal-farm-treat')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>農場名</label>
+      <div style="display:flex;gap:8px;">
+        <select id="farm-name-select" onchange="onFarmNameChange()" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;-webkit-appearance:none;">
+          <option value="obara">小原牧場</option>
+          <option value="other">他農場（手入力）</option>
+        </select>
+        <input type="text" id="farm-name-input" placeholder="農場名を入力" style="flex:1;display:none;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>処置日</label>
+      <input type="date" id="farm-treat-date">
+    </div>
+    <div class="form-group">
+      <label>対象牛（複数選択可）</label>
+      <input type="text" id="farm-cow-search" placeholder="耳標・名前・識別番号で検索..." oninput="onFarmCowSearch(this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;">
+      <div id="farm-cow-suggestions" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:180px;overflow-y:auto;"></div>
+      <div id="farm-cow-selected-list" style="margin-top:8px;"></div>
+    </div>
+    <div class="form-group">
+      <label>病名（大分類）</label>
+      <select id="farm-disease-large" onchange="onFarmDiseaseLargeChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;"><option value="">選択...</option></select>
+    </div>
+    <div class="form-group" id="farm-disease-small-wrap" style="display:none;">
+      <label>病名（詳細）</label>
+      <select id="farm-disease-code" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;"><option value="">選択...</option></select>
+    </div>
+    <div class="form-group">
+      <label>バイタルサイン（任意・代表値）</label>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--muted);">T（℃）</label><input type="number" id="farm-temp" step="0.1" placeholder="38.5" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--muted);">P</label><input type="number" id="farm-pulse" placeholder="80" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--muted);">R</label><input type="number" id="farm-resp" placeholder="20" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>稟告（任意）</label>
+      <input type="text" id="farm-complaint" placeholder="例: 下痢、食欲不振" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;">
+    </div>
+    <div class="form-group">
+      <label>現症・経過（任意）</label>
+      <textarea id="farm-findings" rows="2" placeholder="現症、処置内容など" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;resize:vertical;"></textarea>
+    </div>
+    <div class="form-group">
+      <label>使用薬品（1頭あたりの量）</label>
+      <div id="farm-drug-rows"></div>
+      <button class="btn btn-secondary btn-sm mt8" onclick="addFarmDrugRow()">＋ 薬品を追加</button>
+    </div>
+    <div id="farm-wd-preview" style="background:#3d2800;border:1px solid var(--warn);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:12px;display:none;"></div>
+    <div class="form-group">
+      <label>備考</label>
+      <textarea id="farm-memo" rows="2" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;resize:vertical;"></textarea>
+    </div>
+    <div id="farm-summary" style="background:var(--bg3);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px;display:none;"></div>
+    <button class="btn btn-primary" onclick="saveFarmTreat()">💾 一括登録</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-nenpo">
   <div class="modal" style="max-width:min(98vw,500px);">
     <div class="modal-title">
@@ -806,9 +877,10 @@ function renderTreatList(q = '') {
     const drugNames = (t.drugs || []).map(d => drugs[d.drugId]?.name || d.drugId).join('、');
     return `<div class="treat-card" onclick="openTreatDetail('${t.id}')">
       <div class="treat-header">
-        <div class="treat-cow">${cowDisplayShort(t.cowId)}</div>
+        <div class="treat-cow">${cowDisplayShort(t.cowId)}${t.batchTreat ? ' <span style="font-size:10px;color:var(--info);">農場処置</span>' : ''}</div>
         <div class="treat-date">${fmtDate(t.date)}</div>
       </div>
+      ${t.farmName && t.farmName !== '小原牧場' ? `<div style="font-size:11px;color:var(--info);">🏡 ${t.farmName}</div>` : ''}
       <div class="treat-drug">💊 ${drugNames}</div>
       ${meatActive ? `<div class="treat-wd active">🥩 食肉休薬 ${fmtDate(meatEnd)}まで</div>` : ''}
       ${milkActive ? `<div class="treat-wd active">🥛 搾乳休薬 ${fmtDate(milkEnd)}まで</div>` : ''}
@@ -1414,7 +1486,279 @@ function calcWithdrawal(cowId) {
   });
   return { meatEnd: maxMeatEnd, milkEnd: maxMilkEnd };
 }
-// ===== 置き薬出庫 =====
+// ===== 農場処置（複数頭一括） =====
+let farmSelectedCows = []; // 選択済み牛リスト
+
+function openFarmTreat() {
+  farmSelectedCows = [];
+  document.getElementById('farm-treat-date').value = today();
+  document.getElementById('farm-cow-search').value = '';
+  document.getElementById('farm-cow-suggestions').style.display = 'none';
+  document.getElementById('farm-cow-selected-list').innerHTML = '';
+  document.getElementById('farm-name-select').value = 'obara';
+  document.getElementById('farm-name-input').style.display = 'none';
+  document.getElementById('farm-name-input').value = '';
+  document.getElementById('farm-disease-large').value = '';
+  document.getElementById('farm-disease-small-wrap').style.display = 'none';
+  document.getElementById('farm-temp').value = '';
+  document.getElementById('farm-pulse').value = '';
+  document.getElementById('farm-resp').value = '';
+  document.getElementById('farm-complaint').value = '';
+  document.getElementById('farm-findings').value = '';
+  document.getElementById('farm-memo').value = '';
+  document.getElementById('farm-wd-preview').style.display = 'none';
+  document.getElementById('farm-summary').style.display = 'none';
+  document.getElementById('farm-drug-rows').innerHTML = '';
+  // 病名セレクト初期化
+  const largeSel = document.getElementById('farm-disease-large');
+  const sorted = Object.entries(DISEASE_CATEGORIES).sort((a,b) => a[0].localeCompare(b[0]));
+  largeSel.innerHTML = '<option value="">選択...</option>' +
+    '<option value="__frequent__">★ よく使う病名</option>' +
+    '<option disabled>──────────────</option>' +
+    sorted.map(([code, cat]) => `<option value="${code}">${code}：${cat.name}</option>`).join('');
+  addFarmDrugRow();
+  openModal('modal-farm-treat');
+}
+
+function onFarmNameChange() {
+  const sel = document.getElementById('farm-name-select').value;
+  const inp = document.getElementById('farm-name-input');
+  inp.style.display = sel === 'other' ? '' : 'none';
+  if (sel === 'other') inp.focus();
+}
+
+function onFarmCowSearch(val) {
+  const sug = document.getElementById('farm-cow-suggestions');
+  if (!val) { sug.style.display = 'none'; return; }
+  const q = val.toLowerCase();
+  const all = getAllAnimals();
+  const matches = all.filter(c =>
+    c.status !== 'retired' &&
+    !farmSelectedCows.find(s => s.id === c.id) &&
+    ((c.id||'').toLowerCase().includes(q) ||
+     (c.name||'').toLowerCase().includes(q) ||
+     (c.nationalId||'').includes(q))
+  ).slice(0, 10);
+  if (!matches.length) { sug.style.display = 'none'; return; }
+  sug.innerHTML = matches.map(c => {
+    const label = c.isCalf
+      ? `${c.id} ${c.name||''} 🐄子 <span style="color:var(--muted);font-size:11px;">${c.nationalId||''}</span>`
+      : `<strong>${c.id}</strong> ${c.name||''} <span style="color:var(--muted);font-size:11px;">${c.nationalId||''}</span>`;
+    return `<div onclick="addFarmCow('${c.id}')" ontouchstart="this.style.background='var(--bg2)'" ontouchend="this.style.background='';addFarmCow('${c.id}')"
+       style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);">${label}</div>`;
+  }).join('');
+  sug.style.display = 'block';
+}
+
+function addFarmCow(cowId) {
+  const all = getAllAnimals();
+  const c = all.find(x => x.id === cowId);
+  if (!c || farmSelectedCows.find(s => s.id === cowId)) return;
+  farmSelectedCows.push(c);
+  document.getElementById('farm-cow-search').value = '';
+  document.getElementById('farm-cow-suggestions').style.display = 'none';
+  renderFarmSelectedCows();
+  updateFarmSummary();
+}
+
+function removeFarmCow(cowId) {
+  farmSelectedCows = farmSelectedCows.filter(c => c.id !== cowId);
+  renderFarmSelectedCows();
+  updateFarmSummary();
+}
+
+function renderFarmSelectedCows() {
+  const el = document.getElementById('farm-cow-selected-list');
+  if (!farmSelectedCows.length) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:4px;">牛が選択されていません</div>';
+    return;
+  }
+  el.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:4px;">選択済み ${farmSelectedCows.length}頭</div>` +
+    farmSelectedCows.map(c => `
+      <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:1px solid var(--accent);border-radius:6px;padding:5px 10px;margin-bottom:4px;font-size:12px;">
+        <span>${c.id} ${c.name||''}</span>
+        <button onclick="removeFarmCow('${c.id}')" style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px;">✕</button>
+      </div>`).join('');
+}
+
+function onFarmDiseaseLargeChange() {
+  const large = document.getElementById('farm-disease-large').value;
+  const wrap = document.getElementById('farm-disease-small-wrap');
+  const smallSel = document.getElementById('farm-disease-code');
+  if (!large) { wrap.style.display = 'none'; return; }
+  if (large === '__frequent__') {
+    smallSel.innerHTML = '<option value="">選択...</option>' +
+      FREQUENT_DISEASES.map(d => `<option value="${d.code}" data-large="${d.large}">${d.code}：${d.name}</option>`).join('');
+    wrap.style.display = '';
+    return;
+  }
+  const cat = DISEASE_CATEGORIES[large];
+  if (!cat) { wrap.style.display = 'none'; return; }
+  const sorted = [...cat.diseases].sort((a,b) => a.code.localeCompare(b.code));
+  smallSel.innerHTML = '<option value="">選択...</option>' +
+    sorted.map(d => `<option value="${d.code}">${d.code}：${d.name}</option>`).join('');
+  wrap.style.display = '';
+}
+
+function addFarmDrugRow() {
+  const drugOptions = Object.entries(drugs)
+    .sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'','ja'))
+    .map(([id,d]) => `<option value="${id}">${d.name}（${d.unit||''}）</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'drug-row';
+  row.innerHTML = `
+    <select onchange="onFarmDrugRowChange(this)" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
+      <option value="">薬品を選択...</option>${drugOptions}
+    </select>
+    <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
+      <input type="number" min="0.1" step="0.1" value="1"
+        style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
+        oninput="updateFarmWdPreview()">
+      <span class="drug-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+    </div>
+    <button onclick="this.parentElement.remove();updateFarmWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>`;
+  document.getElementById('farm-drug-rows').appendChild(row);
+}
+
+function onFarmDrugRowChange(sel) {
+  const row = sel.closest('.drug-row');
+  const unitLabel = row.querySelector('.drug-unit-label');
+  const qtyInput = row.querySelector('input[type="number"]');
+  if (sel.value && drugs[sel.value]) {
+    const d = drugs[sel.value];
+    unitLabel.textContent = d.unit || '';
+    qtyInput.step = d.stockType === 'ml' ? '0.1' : '1';
+  } else {
+    unitLabel.textContent = '';
+  }
+  updateFarmWdPreview();
+}
+
+function updateFarmWdPreview() {
+  const rows = document.querySelectorAll('#farm-drug-rows .drug-row');
+  const dateVal = document.getElementById('farm-treat-date').value;
+  if (!dateVal) return;
+  let maxMeat = 0, maxMilk = 0;
+  rows.forEach(row => {
+    const sel = row.querySelector('select');
+    if (!sel?.value) return;
+    const drug = drugs[sel.value];
+    if (!drug) return;
+    maxMeat = Math.max(maxMeat, drug.wdMeat || 0);
+    maxMilk = Math.max(maxMilk, drug.wdMilk || 0);
+  });
+  const prev = document.getElementById('farm-wd-preview');
+  if (maxMeat > 0 || maxMilk > 0) {
+    const meatEnd = maxMeat > 0 ? addDays(dateVal, maxMeat) : null;
+    const milkEnd = maxMilk > 0 ? addDays(dateVal, maxMilk) : null;
+    prev.innerHTML = `⚠️ 休薬期間${meatEnd ? ` 食肉: ${fmtDate(meatEnd)}まで` : ''}${milkEnd ? ` 搾乳: ${fmtDate(milkEnd)}まで` : ''}`;
+    prev.style.display = 'block';
+  } else {
+    prev.style.display = 'none';
+  }
+  updateFarmSummary();
+}
+
+function updateFarmSummary() {
+  const el = document.getElementById('farm-summary');
+  const rows = document.querySelectorAll('#farm-drug-rows .drug-row');
+  const drugList = [];
+  rows.forEach(row => {
+    const sel = row.querySelector('select');
+    const qty = parseFloat(row.querySelector('input')?.value) || 0;
+    if (sel?.value && qty > 0) {
+      const d = drugs[sel.value];
+      if (d) drugList.push(`${d.name} ${qty}${d.unit||''}`);
+    }
+  });
+  if (farmSelectedCows.length > 0 && drugList.length > 0) {
+    const totalRows = drugList.map(d => {
+      const parts = d.match(/(.+)\s+([\d.]+)(.*)$/);
+      return parts ? `${parts[1]}: 合計 ${(parseFloat(parts[2]) * farmSelectedCows.length).toFixed(1)}${parts[3]}` : d;
+    });
+    el.innerHTML = `✅ <strong>${farmSelectedCows.length}頭</strong>に登録します<br>在庫消費：${totalRows.join('、')}`;
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function saveFarmTreat() {
+  if (!farmSelectedCows.length) { alert('牛を1頭以上選択してください'); return; }
+  const date = document.getElementById('farm-treat-date').value;
+  if (!date) { alert('処置日を入力してください'); return; }
+  const farmSel = document.getElementById('farm-name-select').value;
+  const farmName = farmSel === 'other'
+    ? (document.getElementById('farm-name-input').value.trim() || '不明')
+    : '小原牧場';
+
+  const rows = document.querySelectorAll('#farm-drug-rows .drug-row');
+  const drugList = [];
+  rows.forEach(row => {
+    const sel = row.querySelector('select');
+    const qty = parseFloat(row.querySelector('input')?.value) || 0;
+    if (sel?.value && qty > 0) drugList.push({ drugId: sel.value, qty });
+  });
+  if (!drugList.length) { alert('薬品を1つ以上選択してください'); return; }
+
+  // 病名
+  const diseaseCode = document.getElementById('farm-disease-code')?.value || '';
+  const diseaseLarge = document.getElementById('farm-disease-large')?.value || '';
+  const selectedOpt = document.getElementById('farm-disease-code')?.selectedOptions?.[0];
+  const actualLarge = selectedOpt?.dataset?.large || (diseaseLarge !== '__frequent__' ? diseaseLarge : '');
+  const diseaseName = diseaseCode ?
+    (DISEASE_CATEGORIES[actualLarge]?.diseases.find(d => d.code === diseaseCode)?.name ||
+     FREQUENT_DISEASES.find(d => d.code === diseaseCode)?.name || '') : '';
+
+  // 休薬期間
+  let maxMeat = 0, maxMilk = 0;
+  drugList.forEach(d => {
+    const drug = drugs[d.drugId];
+    if (!drug) return;
+    maxMeat = Math.max(maxMeat, drug.wdMeat || 0);
+    maxMilk = Math.max(maxMilk, drug.wdMilk || 0);
+  });
+  const wdMeatEnd = maxMeat > 0 ? addDays(date, maxMeat) : null;
+  const wdMilkEnd = maxMilk > 0 ? addDays(date, maxMilk) : null;
+
+  const complaint = document.getElementById('farm-complaint').value;
+  const findings = document.getElementById('farm-findings').value;
+  const temp = document.getElementById('farm-temp').value;
+  const pulse = document.getElementById('farm-pulse').value;
+  const resp = document.getElementById('farm-resp').value;
+  const memo = document.getElementById('farm-memo').value;
+
+  const updates = {};
+
+  // 牛ごとに処置レコードを作成
+  farmSelectedCows.forEach(c => {
+    const treatId = 'treat_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+    updates['treatments/' + treatId] = {
+      cowId: c.id, date, farmName,
+      drugs: drugList, memo, complaint, findings, temp, pulse, resp,
+      diseaseCode, diseaseName, diseaseLarge: actualLarge,
+      wdMeatEnd, wdMilkEnd,
+      outcome: '', outcomeDate: '',
+      batchTreat: true, // 農場処置フラグ
+    };
+    // 在庫減算（1頭ごと）
+    drugList.forEach(d => {
+      const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+      updates['movements/' + movId] = {
+        drugId: d.drugId, type: 'use', qty: -d.qty,
+        date, cowId: c.id, farmName, memo,
+      };
+    });
+  });
+
+  saveVet(updates).then(() => {
+    closeModal('modal-farm-treat');
+    alert(`✅ ${farmSelectedCows.length}頭分の処置を登録しました`);
+    showTab('treat');
+  });
+}
+
+
 function openOkiGusuri() {
   document.getElementById('oki-date').value = today();
   document.getElementById('oki-qty').value = '1';
