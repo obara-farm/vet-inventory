@@ -1552,6 +1552,11 @@ function renderChecklist(items) {
   </div>`;
 }
 
+function onDiseaseCodeChange() {
+  const code = document.getElementById('treat-disease-code')?.value;
+  if (code) loadDiseasePreset(code);
+}
+
 function buildFindingsFromChecklist() {
   const items = document.querySelectorAll('#treat-checklist input[type="checkbox"]');
   const parts = [];
