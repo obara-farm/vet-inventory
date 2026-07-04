@@ -1269,6 +1269,8 @@ function setStockInMode(mode) {
   }
   document.getElementById('stockin-mode-in').dataset.mode = mode;
 }
+
+function updateStockInUnit() {
   const drugId = document.getElementById('stockin-drug-id').value;
   const qtyLabel = document.getElementById('stockin-qty-label');
   const partialWrap = document.getElementById('stockin-partial-wrap');
