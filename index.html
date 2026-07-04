@@ -635,20 +635,7 @@ let treatments = {}; // vetTreatments: { treatId: { cowId, date, drugs:[{drugId,
 let cows = [];       // breeding-manager2のcowsを参照
 let calves = [];     // breeding-manager2のcalvesを参照
 
-// 親牛＋子牛の統合リスト
-function getAllAnimals() {
-  const calvesFormatted = calves.map(c => ({
-    id: c.id || c.nationalId || '',
-    name: c.name || '',
-    nationalId: c.nationalId || '',
-    dob: c.birthDate || c.dob || '',
-    breed: c.breed || '',
-    sex: c.sex || '',
-    isCalf: true,
-  }));
-  return [...cows, ...calvesFormatted];
-}
-
+// 月齢/日齢/年齢を計算
 function today() {
   return new Date().toLocaleDateString('sv-SE');
 }
