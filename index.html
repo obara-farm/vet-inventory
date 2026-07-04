@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>薬品管理 — 小原家畜診療所</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#3fb950;--warn:#d29922;--danger:#f85149;
+  --info:#58a6ff;--purple:#bc8cff;
+  --radius:10px;
+}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino Sans',sans-serif;
+  font-size:14px;min-height:100dvh;padding-bottom:80px;}
+
+/* ヘッダー */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);
+  padding:12px 16px;display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:100;}
+.header-title{font-size:16px;font-weight:700;color:var(--text);}
+.header-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.sync-status{font-size:11px;padding:3px 8px;border-radius:20px;border:1px solid;}
+.sync-status.ok{color:var(--accent);border-color:var(--accent);}
+.sync-status.ing{color:var(--warn);border-color:var(--warn);}
+.sync-status.err{color:var(--danger);border-color:var(--danger);}
+
+/* タブバー */
+.tab-bar{position:fixed;bottom:0;left:0;right:0;background:var(--bg2);
+  border-top:1px solid var(--border);display:flex;z-index:100;}
+.tab-btn{flex:1;padding:10px 4px 8px;border:none;background:none;color:var(--muted);
+  font-size:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.tab-btn.active{color:var(--accent);}
+.tab-btn span{font-size:20px;line-height:1;}
+
+/* ページ */
+.page{display:none;padding:12px;}
+.page.active{display:block;}
+
+/* カード */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px 14px;margin-bottom:10px;}
+.card-title{font-size:13px;font-weight:700;margin-bottom:8px;color:var(--muted);
+  letter-spacing:.5px;text-transform:uppercase;}
+
+/* ボタン */
+.btn{border:none;border-radius:8px;padding:10px 16px;font-size:14px;font-weight:600;
+  cursor:pointer;width:100%;display:block;text-align:center;}
+.btn-primary{background:var(--accent);color:#000;}
+.btn-danger{background:var(--danger);color:#fff;}
+.btn-secondary{background:var(--bg3);color:var(--text);border:1px solid var(--border);}
+.btn-sm{padding:5px 10px;font-size:12px;width:auto;display:inline-block;}
+
+/* フォーム */
+.form-group{margin-bottom:12px;}
+.form-group label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+.form-group input,.form-group select,.form-group textarea{
+  width:100%;background:var(--bg3);border:1px solid var(--border);
+  color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;
+  -webkit-appearance:none;}
+.form-group textarea{min-height:60px;resize:vertical;}
+
+/* アラートバナー */
+.alert-banner{background:#3d1a1a;border:1px solid var(--danger);border-radius:var(--radius);
+  padding:10px 12px;margin-bottom:10px;}
+.alert-banner h3{color:var(--danger);font-size:13px;margin-bottom:6px;}
+.alert-item{font-size:12px;color:#f5c6cb;padding:3px 0;border-bottom:1px solid #5a2020;}
+.alert-item:last-child{border-bottom:none;}
+
+/* モーダル */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;
+  overflow-y:auto;padding:16px;}
+.modal-overlay.open{display:flex;align-items:flex-start;justify-content:center;}
+.modal{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  width:100%;max-width:480px;padding:16px;}
+.modal-title{font-size:16px;font-weight:700;margin-bottom:14px;display:flex;
+  justify-content:space-between;align-items:center;}
+.modal-close{background:none;border:1px solid var(--border);color:var(--muted);
+  width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:16px;}
+
+/* リスト */
+.list-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.list-item:active{background:var(--bg3);}
+.list-item-main{flex:1;min-width:0;}
+.list-item-name{font-size:14px;font-weight:600;}
+.list-item-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.list-item-badge{font-size:11px;padding:2px 8px;border-radius:12px;font-weight:700;white-space:nowrap;}
+.badge-ok{background:#1a3a1a;color:var(--accent);border:1px solid var(--accent);}
+.badge-low{background:#3d2800;color:var(--warn);border:1px solid var(--warn);}
+.badge-out{background:#3d1a1a;color:var(--danger);border:1px solid var(--danger);}
+.badge-warn{background:#3d2800;color:var(--warn);border:1px solid var(--warn);}
+
+/* 休薬期間警告 */
+.withdrawal-banner{background:#3d2800;border:1px solid var(--warn);border-radius:var(--radius);
+  padding:10px 12px;margin-bottom:10px;}
+.withdrawal-banner h3{color:var(--warn);font-size:13px;margin-bottom:6px;}
+
+/* 処置カード */
+.treat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:11px 13px;margin-bottom:8px;}
+.treat-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;}
+.treat-cow{font-size:14px;font-weight:700;}
+.treat-date{font-size:11px;color:var(--muted);}
+.treat-drug{font-size:12px;color:var(--info);margin-bottom:2px;}
+.treat-wd{font-size:11px;}
+.treat-wd.active{color:var(--danger);font-weight:700;}
+.treat-wd.done{color:var(--accent);}
+
+/* 数値バッジ */
+.stock-num{font-size:22px;font-weight:700;line-height:1;}
+.stock-unit{font-size:11px;color:var(--muted);}
+
+/* セクションヘッダー */
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.section-title{font-size:15px;font-weight:700;}
+
+/* 検索 */
+.search-box{background:var(--bg3);border:1px solid var(--border);border-radius:8px;
+  padding:9px 12px;font-size:14px;color:var(--text);width:100%;margin-bottom:10px;}
+
+/* チップ */
+.chip{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;
+  font-weight:600;margin-right:4px;margin-bottom:2px;}
+.chip-meat{background:#3d1a1a;color:var(--danger);}
+.chip-milk{background:#1a2a3d;color:var(--info);}
+.chip-clear{background:#1a3a1a;color:var(--accent);}
+
+/* ホームスタット */
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
+.stat-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);
+  padding:12px;text-align:center;}
+.stat-num{font-size:28px;font-weight:700;line-height:1;}
+.stat-label{font-size:11px;color:var(--muted);margin-top:4px;}
+
+.divider{height:1px;background:var(--border);margin:12px 0;}
+.text-muted{color:var(--muted);}
+.text-danger{color:var(--danger);}
+.text-accent{color:var(--accent);}
+.text-warn{color:var(--warn);}
+.text-info{color:var(--info);}
+.mt8{margin-top:8px;}
+.drug-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+.drug-row select{flex:1;}
+.drug-row input{width:70px;}
+</style>
+</head>
+<body>
+
+<!-- ヘッダー -->
+<div class="header">
+  <div>
+    <div class="header-title">💊 薬品管理</div>
+    <div class="header-sub">小原家畜診療所</div>
+  </div>
+  <div id="sync-status" class="sync-status ing">接続中...</div>
+</div>
+
+<!-- タブバー -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="showTab('home')" id="tab-home">
+    <span>🏠</span>ホーム
+  </button>
+  <button class="tab-btn" onclick="showTab('treat')" id="tab-treat">
+    <span>💉</span>処置
+  </button>
+  <button class="tab-btn" onclick="showTab('stock')" id="tab-stock">
+    <span>📦</span>在庫
+  </button>
+  <button class="tab-btn" onclick="showTab('drugs')" id="tab-drugs">
+    <span>💊</span>薬品
+  </button>
+  <button class="tab-btn" onclick="showTab('history')" id="tab-history">
+    <span>📋</span>履歴
+  </button>
+</div>
+
+<!-- ホーム -->
+<div class="page active" id="page-home">
+  <div id="home-withdrawal-alerts"></div>
+  <div id="home-stock-alerts"></div>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <div class="stat-num text-accent" id="stat-drugs">—</div>
+      <div class="stat-label">登録薬品数</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num text-info" id="stat-treats">—</div>
+      <div class="stat-label">今月の処置</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num text-danger" id="stat-wd">—</div>
+      <div class="stat-label">休薬中の牛</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num text-warn" id="stat-low">—</div>
+      <div class="stat-label">要発注薬品</div>
+    </div>
+  </div>
+  <button class="btn btn-primary mt8" onclick="openModal('modal-treat')">＋ 処置を登録</button>
+  <button class="btn btn-secondary mt8" onclick="openModal('modal-karte')" style="border-color:var(--purple);color:var(--purple);">📄 カルテ印刷</button>
+  <button class="btn btn-secondary mt8" onclick="openNenpo()" style="border-color:var(--info);color:var(--info);">📊 診療年報</button>
+</div>
+
+<!-- 処置タブ -->
+<div class="page" id="page-treat">
+  <div class="section-header">
+    <div class="section-title">処置記録</div>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-treat')">＋ 処置</button>
+  </div>
+  <input class="search-box" placeholder="牛名・耳標で検索..." oninput="renderTreatList(this.value)" id="treat-search">
+  <div id="treat-list"></div>
+</div>
+
+<!-- 在庫タブ -->
+<div class="page" id="page-stock">
+  <div class="section-header">
+    <div class="section-title">在庫一覧</div>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-stock-in')">＋ 入庫</button>
+  </div>
+  <input class="search-box" placeholder="薬品名で検索..." oninput="renderStockList(this.value)" id="stock-search">
+  <div id="stock-list"></div>
+</div>
+
+<!-- 薬品マスタタブ -->
+<div class="page" id="page-drugs">
+  <div class="section-header">
+    <div class="section-title">薬品マスタ</div>
+    <button class="btn btn-primary btn-sm" onclick="openModal('modal-drug-edit')">＋ 追加</button>
+  </div>
+  <input class="search-box" placeholder="薬品名で検索..." oninput="renderDrugList(this.value)" id="drug-search">
+  <div id="drug-list"></div>
+</div>
+
+<!-- 履歴タブ -->
+<div class="page" id="page-history">
+  <div class="section-header">
+    <div class="section-title">処置履歴</div>
+  </div>
+  <select id="history-cow-filter" class="search-box" onchange="renderHistory()">
+    <option value="">すべての牛</option>
+  </select>
+  <div id="history-list"></div>
+</div>
+
+<!-- ===== モーダル ===== -->
+
+<!-- 処置登録モーダル -->
+<div class="modal-overlay" id="modal-treat">
+  <div class="modal">
+    <div class="modal-title">
+      💉 処置を登録
+      <button class="modal-close" onclick="closeModal('modal-treat')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>牛（耳標 or 名前で検索）</label>
+      <input type="text" id="treat-cow-search" placeholder="例: b73 / はれみ" oninput="onTreatCowSearch(this.value)">
+      <div id="treat-cow-suggestions" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:200px;overflow-y:auto;"></div>
+      <input type="hidden" id="treat-cow-id">
+      <div id="treat-cow-selected" style="font-size:12px;color:var(--accent);margin-top:4px;"></div>
+      <div id="treat-cow-info" style="font-size:11px;color:var(--info);margin-top:3px;display:none;"></div>
+    </div>
+    <div class="form-group">
+      <label>処置日</label>
+      <input type="date" id="treat-date">
+    </div>
+    <div class="form-group">
+      <label>使用薬品（複数追加可）</label>
+      <div id="treat-drug-rows"></div>
+      <button class="btn btn-secondary btn-sm mt8" onclick="addTreatDrugRow()">＋ 薬品を追加</button>
+    </div>
+    <div class="form-group">
+      <label>病名（大分類）</label>
+      <select id="treat-disease-large" onchange="onDiseaseLargeChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;">
+        <option value="">選択...</option>
+      </select>
+    </div>
+    <div class="form-group" id="treat-disease-small-wrap" style="display:none;">
+      <label>病名（詳細）</label>
+      <select id="treat-disease-code" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;">
+        <option value="">選択...</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>バイタルサイン（任意）</label>
+      <div style="display:flex;gap:8px;">
+        <div style="flex:1;"><label style="font-size:11px;color:var(--muted);">T（体温℃）</label><input type="number" id="treat-temp" step="0.1" placeholder="38.5" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--muted);">P（脈拍）</label><input type="number" id="treat-pulse" placeholder="80" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;"></div>
+        <div style="flex:1;"><label style="font-size:11px;color:var(--muted);">R（呼吸数）</label><input type="number" id="treat-resp" placeholder="20" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:14px;"></div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>稟告（任意）</label>
+      <input type="text" id="treat-complaint" placeholder="例: 下痢、食欲不振">
+    </div>
+    <div class="form-group">
+      <label>現症・経過（任意）</label>
+      <textarea id="treat-findings" placeholder="現症、処置内容、経過など" rows="3"></textarea>
+    </div>
+    <div class="form-group">
+      <label>転帰（任意・後から記録可）</label>
+      <div style="display:flex;gap:8px;">
+        <select id="treat-outcome" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;-webkit-appearance:none;" onchange="onOutcomeChange()">
+          <option value="">継続中</option>
+          <option value="10">10：治癒</option>
+          <option value="20">20：軽快</option>
+          <option value="30">30：死亡</option>
+          <option value="40">40：とさつ</option>
+          <option value="50">50：転出</option>
+          <option value="60">60：その他</option>
+        </select>
+        <input type="date" id="treat-outcome-date" placeholder="転帰日" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;display:none;">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>備考</label>
+      <textarea id="treat-memo" placeholder="備考・メモ"></textarea>
+    </div>
+    <div id="treat-wd-preview" style="background:#3d2800;border:1px solid var(--warn);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:12px;display:none;"></div>
+    <button class="btn btn-primary" onclick="saveTreat()">保存</button>
+  </div>
+</div>
+
+<!-- 診療年報モーダル -->
+<div class="modal-overlay" id="modal-nenpo">
+  <div class="modal" style="max-width:min(98vw,500px);">
+    <div class="modal-title">
+      📊 診療年報
+      <button class="modal-close" onclick="closeModal('modal-nenpo')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>対象年度</label>
+      <select id="nenpo-year" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;"></select>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">
+      ※ 集計方法：同一症例（転帰未完了）は同一月複数回診ても1頭。転帰完了後の再発は別症例。
+    </div>
+    <button class="btn btn-primary" onclick="printNenpo()">🖨️ 年報を印刷</button>
+  </div>
+</div>
+
+<!-- カルテ印刷モーダル -->
+<div class="modal-overlay" id="modal-karte">
+  <div class="modal" style="max-width:min(98vw,600px);">
+    <div class="modal-title">
+      📄 カルテ印刷プレビュー
+      <button class="modal-close" onclick="closeModal('modal-karte')">✕</button>
+    </div>
+    <div class="form-group" style="margin-bottom:12px;">
+      <label>牛を選択</label>
+      <input type="text" id="karte-cow-search" placeholder="耳標 or 名前で検索..." oninput="onKarteCowSearch(this.value)">
+      <div id="karte-cow-suggestions" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:200px;overflow-y:auto;"></div>
+      <input type="hidden" id="karte-cow-id">
+      <div id="karte-cow-selected" style="font-size:12px;color:var(--accent);margin-top:4px;"></div>
+    </div>
+    <button class="btn btn-primary" onclick="printKarte()" style="margin-bottom:8px;">🖨️ 印刷プレビュー</button>
+    <div style="font-size:11px;color:var(--muted);text-align:center;">同じ牛の全診療記録をA4カルテ形式で印刷します</div>
+  </div>
+</div>
+
+<!-- 入庫モーダル -->
+<div class="modal-overlay" id="modal-stock-in">
+  <div class="modal">
+    <div class="modal-title">
+      📦 入庫登録
+      <button class="modal-close" onclick="closeModal('modal-stock-in')">✕</button>
+    </div>
+    <div class="form-group">
+      <label>薬品</label>
+      <select id="stockin-drug-id"><option value="">選択...</option></select>
+    </div>
+    <div class="form-group">
+      <label>入庫数量</label>
+      <input type="number" id="stockin-qty" min="1" value="1" placeholder="本数・個数">
+    </div>
+    <div class="form-group">
+      <label>入庫日</label>
+      <input type="date" id="stockin-date">
+    </div>
+    <div class="form-group">
+      <label>備考（ロット番号など）</label>
+      <input type="text" id="stockin-memo" placeholder="任意">
+    </div>
+    <button class="btn btn-primary" onclick="saveStockIn()">入庫登録</button>
+  </div>
+</div>
+
+<!-- 薬品編集モーダル -->
+<div class="modal-overlay" id="modal-drug-edit">
+  <div class="modal">
+    <div class="modal-title">
+      💊 <span id="drug-edit-title">薬品を追加</span>
+      <button class="modal-close" onclick="closeModal('modal-drug-edit')">✕</button>
+    </div>
+    <input type="hidden" id="drug-edit-id">
+    <div class="form-group">
+      <label>薬品名</label>
+      <input type="text" id="drug-name" placeholder="例: PG（プロスタグランジン）">
+    </div>
+    <div class="form-group">
+      <label>カテゴリ</label>
+      <select id="drug-category">
+        <option value="ホルモン剤">ホルモン剤</option>
+        <option value="抗生剤">抗生剤</option>
+        <option value="消炎鎮痛剤">消炎鎮痛剤</option>
+        <option value="ワクチン">ワクチン</option>
+        <option value="駆虫剤">駆虫剤</option>
+        <option value="ビタミン剤">ビタミン剤</option>
+        <option value="その他">その他</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>食肉休薬期間（日）</label>
+      <input type="number" id="drug-wd-meat" min="0" value="0" placeholder="0=なし">
+    </div>
+    <div class="form-group">
+      <label>搾乳休薬期間（日）</label>
+      <input type="number" id="drug-wd-milk" min="0" value="0" placeholder="0=なし">
+    </div>
+    <div class="form-group">
+      <label>単位</label>
+      <input type="text" id="drug-unit" placeholder="例: ml、本、錠">
+    </div>
+    <div class="form-group">
+      <label>発注アラート閾値</label>
+      <input type="number" id="drug-threshold" min="0" value="0" placeholder="0=アラートなし">
+    </div>
+    <div class="form-group">
+      <label>用法・用量メモ</label>
+      <textarea id="drug-usage" placeholder="例: 5ml/頭 筋注"></textarea>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="saveDrug()">保存</button>
+      <button class="btn btn-danger btn-sm" id="drug-delete-btn" onclick="deleteDrug()" style="display:none;">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- 在庫詳細モーダル -->
+<div class="modal-overlay" id="modal-stock-detail">
+  <div class="modal">
+    <div class="modal-title">
+      📊 <span id="stock-detail-name"></span>
+      <button class="modal-close" onclick="closeModal('modal-stock-detail')">✕</button>
+    </div>
+    <div id="stock-detail-content"></div>
+  </div>
+</div>
+
+<!-- 処置詳細モーダル -->
+<div class="modal-overlay" id="modal-treat-detail">
+  <div class="modal">
+    <div class="modal-title">
+      📋 処置詳細
+      <button class="modal-close" onclick="closeModal('modal-treat-detail')">✕</button>
+    </div>
+    <div id="treat-detail-content"></div>
+    <button class="btn btn-danger mt8" id="treat-delete-btn">🗑 この処置を削除</button>
+  </div>
+</div>
+
+<script>
+const DISEASE_CATEGORIES = {"01": {"name": "循環器病", "diseases": [{"code": "010100", "name": "心のう炎"}, {"code": "010200", "name": "創傷性心のう炎"}, {"code": "010300", "name": "心臓肥大"}, {"code": "010401", "name": "心筋症　肥大型"}, {"code": "010402", "name": "拡張型"}, {"code": "010403", "name": "その他"}, {"code": "010501", "name": "心筋炎　感染症"}, {"code": "010502", "name": "その他"}, {"code": "010600", "name": "心臓破裂"}, {"code": "010701", "name": "心内膜炎　感染症"}, {"code": "010702", "name": "その他"}, {"code": "010800", "name": "心臓弁膜病"}, {"code": "010901", "name": "不整脈　心房細動"}, {"code": "010902", "name": "その他"}, {"code": "011001", "name": "心不全　左心性"}, {"code": "011002", "name": "右心性"}, {"code": "011003", "name": "両心性"}, {"code": "011004", "name": "その他"}, {"code": "011100", "name": "動脈瘤"}, {"code": "011201", "name": "動脈炎　ｳｲﾙｽ性"}, {"code": "011202", "name": "細菌性"}, {"code": "011203", "name": "寄生虫性"}, {"code": "011204", "name": "その他"}, {"code": "011300", "name": "動脈破裂"}, {"code": "011400", "name": "動脈血栓症"}, {"code": "011500", "name": "後大静脈血栓症"}, {"code": "011600", "name": "静脈炎"}, {"code": "011700", "name": "ﾘﾝﾊﾟ管炎"}, {"code": "011800", "name": "心臓腫瘍"}, {"code": "011900", "name": "血管腫瘍"}, {"code": "012000", "name": "その他の循環器疾患"}]}, "02": {"name": "血液･造血器病", "diseases": [{"code": "020101", "name": "血液凝固不全　血友病"}, {"code": "020102", "name": "壊血病"}, {"code": "020103", "name": "その他"}, {"code": "020200", "name": "血色素尿(血)症"}, {"code": "020300", "name": "産褥性血色素尿(血)症"}, {"code": "020400", "name": "馬麻痺性筋色素尿(血)症"}, {"code": "020500", "name": "ﾎﾟﾙﾌｨﾘﾝ尿症"}, {"code": "020600", "name": "出血性貧血"}, {"code": "020701", "name": "溶血性貧血　水中毒"}, {"code": "020702", "name": "免疫性"}, {"code": "020703", "name": "遺伝性"}, {"code": "020704", "name": "その他"}, {"code": "020800", "name": "再生不良性貧血"}, {"code": "020900", "name": "その他の貧血"}, {"code": "021000", "name": "ﾘﾝﾊﾟ節炎"}, {"code": "021100", "name": "脾炎"}, {"code": "021200", "name": "白血病"}, {"code": "021300", "name": "ﾘﾝﾊﾟ節腫瘍"}, {"code": "021400", "name": "脾臓腫瘍"}, {"code": "021500", "name": "骨髄腫瘍"}, {"code": "021600", "name": "その他の血液･造血器疾患"}]}, "03": {"name": "呼吸器病", "diseases": [{"code": "030101", "name": "鼻炎　感染性"}, {"code": "030102", "name": "寄生虫性"}, {"code": "030103", "name": "ｱﾚﾙｷﾞｰ性"}, {"code": "030104", "name": "その他"}, {"code": "030200", "name": "鼻出血"}, {"code": "030300", "name": "化膿性鼻洞炎"}, {"code": "030400", "name": "前頭洞炎"}, {"code": "030500", "name": "喉嚢炎"}, {"code": "030601", "name": "喉頭炎　感染症"}, {"code": "030602", "name": "その他"}, {"code": "030701", "name": "喘鳴症　喉頭麻痺"}, {"code": "030702", "name": "軟口蓋異常"}, {"code": "030703", "name": "その他"}, {"code": "030800", "name": "気管狭窄"}, {"code": "030900", "name": "気管炎"}, {"code": "031000", "name": "気管支炎"}, {"code": "031100", "name": "肺充血"}, {"code": "031200", "name": "肺水腫"}, {"code": "031300", "name": "肺気腫"}, {"code": "031401", "name": "肺炎　ｳｲﾙｽ性"}, {"code": "031402", "name": "ｸﾗﾐｼﾞｱ性"}, {"code": "031403", "name": "ﾏｲｺﾌﾟﾗｽﾞﾏ性"}, {"code": "031404", "name": "細菌性"}, {"code": "031405", "name": "真菌性"}, {"code": "031406", "name": "寄生虫性"}, {"code": "031407", "name": "吸引性（誤嚥性）"}, {"code": "031408", "name": "霧熱"}, {"code": "031409", "name": "その他"}, {"code": "031500", "name": "肺膿瘍"}, {"code": "031600", "name": "水胸"}, {"code": "031700", "name": "血胸"}, {"code": "031800", "name": "気胸"}, {"code": "031900", "name": "膿胸"}, {"code": "032001", "name": "胸膜炎　外傷性"}, {"code": "032002", "name": "結核性"}, {"code": "032003", "name": "その他"}, {"code": "032100", "name": "横隔膜ﾍﾙﾆｱ"}, {"code": "032200", "name": "鼻腔腫瘍"}, {"code": "032300", "name": "喉頭腫瘍"}, {"code": "032400", "name": "気管(支)腫瘍"}, {"code": "032500", "name": "肺腫瘍"}, {"code": "032600", "name": "その他呼吸器腫瘍"}, {"code": "032700", "name": "その他呼吸器疾患"}]}, "04": {"name": "消化器病", "diseases": [{"code": "040101", "name": "歯牙磨滅異常　斜歯"}, {"code": "040102", "name": "剪状歯"}, {"code": "040103", "name": "階状歯"}, {"code": "040104", "name": "その他"}, {"code": "040200", "name": "裂歯"}, {"code": "040300", "name": "齲歯"}, {"code": "040400", "name": "歯槽骨膜炎"}, {"code": "040500", "name": "歯肉炎"}, {"code": "040600", "name": "舌炎"}, {"code": "040700", "name": "舌損傷"}, {"code": "040801", "name": "口内炎　感染症"}, {"code": "040802", "name": "異物･薬物性"}, {"code": "040803", "name": "ﾋﾞﾀﾐﾝ欠乏性"}, {"code": "040804", "name": "その他"}, {"code": "040900", "name": "唾液腺炎"}, {"code": "041000", "name": "唾管閉鎖"}, {"code": "041101", "name": "咽頭炎　感染症"}, {"code": "041102", "name": "異物性"}, {"code": "041201", "name": "咽頭閉塞　感染性"}, {"code": "041202", "name": "異物性"}, {"code": "041203", "name": "その他"}, {"code": "041301", "name": "咽頭麻痺　感染性"}, {"code": "041302", "name": "中毒性"}, {"code": "041303", "name": "異物性"}, {"code": "041304", "name": "腫瘍性"}, {"code": "041305", "name": "その他"}, {"code": "041400", "name": "扁桃炎"}, {"code": "041500", "name": "その他口腔･咽頭疾患"}, {"code": "041601", "name": "食道炎　感染症"}, {"code": "041602", "name": "寄生虫性"}, {"code": "041603", "name": "異物性"}, {"code": "041604", "name": "その他"}, {"code": "041701", "name": "食道梗塞　異物性"}, {"code": "041702", "name": "その他"}, {"code": "041800", "name": "食道狭窄"}, {"code": "041900", "name": "食道拡張"}, {"code": "042000", "name": "食道憩室"}, {"code": "042100", "name": "食道破裂"}, {"code": "042200", "name": "食道麻痺"}, {"code": "042300", "name": "食道痙攣"}, {"code": "042400", "name": "その他の食道疾患"}, {"code": "042500", "name": "第一胃食滞"}, {"code": "042600", "name": "第一胃破裂"}, {"code": "042700", "name": "ﾙｰﾒﾝﾊﾟﾗｹﾗﾄｰｼｽ"}, {"code": "042800", "name": "ﾙｰﾒﾝｱｼﾄﾞｰｼｽ"}, {"code": "042900", "name": "ﾙｰﾒﾝｱﾙｶﾛｰｼｽ"}, {"code": "043000", "name": "急性鼓脹症"}, {"code": "043100", "name": "慢性鼓脹症"}, {"code": "043200", "name": "外(創)傷性第二胃炎"}, {"code": "043300", "name": "外(創)傷性胃横隔膜炎"}, {"code": "043400", "name": "迷走神経性消化不良"}, {"code": "043500", "name": "第三胃食滞"}, {"code": "043601", "name": "第四胃食滞　異物性"}, {"code": "043602", "name": "その他"}, {"code": "043701", "name": "第四胃潰瘍　感染性"}, {"code": "043702", "name": "食餌性"}, {"code": "043703", "name": "その他"}, {"code": "043801", "name": "第四胃炎　感染性"}, {"code": "043802", "name": "寄生虫性"}, {"code": "043803", "name": "異物性"}, {"code": "043804", "name": "その他"}, {"code": "043900", "name": "第四胃左方変位"}, {"code": "044000", "name": "第四胃右方変位"}, {"code": "044100", "name": "その他複胃疾患"}, {"code": "044200", "name": "急性胃拡張"}, {"code": "044300", "name": "慢性胃拡張"}, {"code": "044401", "name": "胃潰瘍　感染性"}, {"code": "044402", "name": "食餌性"}, {"code": "044403", "name": "その他"}, {"code": "044500", "name": "胃捻転"}, {"code": "044600", "name": "胃破裂"}, {"code": "044701", "name": "急性胃炎　感染性"}, {"code": "044702", "name": "寄生虫性"}, {"code": "044703", "name": "中毒性"}, {"code": "044704", "name": "異物性"}, {"code": "044705", "name": "その他"}, {"code": "044800", "name": "慢性胃炎"}, {"code": "044900", "name": "幽門狭窄"}, {"code": "045000", "name": "その他の単胃疾患"}, {"code": "045100", "name": "腸閉塞"}, {"code": "045200", "name": "腸狭窄"}, {"code": "045300", "name": "腸捻転"}, {"code": "045400", "name": "腸重積"}, {"code": "045501", "name": "腸炎　感染性"}, {"code": "045502", "name": "寄生虫性"}, {"code": "045503", "name": "食餌性"}, {"code": "045504", "name": "中毒性"}, {"code": "045505", "name": "出血性腸症候群"}, {"code": "045506", "name": "その他"}, {"code": "045601", "name": "腸潰瘍　感染性"}, {"code": "045602", "name": "その他"}, {"code": "045700", "name": "盲腸拡張"}, {"code": "045800", "name": "盲腸捻転"}, {"code": "045901", "name": "腸鼓脹　盲腸"}, {"code": "045902", "name": "結腸"}, {"code": "046001", "name": "便秘症　大腸"}, {"code": "046002", "name": "小腸"}, {"code": "046100", "name": "腸破裂"}, {"code": "046200", "name": "直腸脱"}, {"code": "046300", "name": "消化吸収不良症候群"}, {"code": "046400", "name": "その他腸疾患"}, {"code": "046500", "name": "胃腸炎"}, {"code": "046600", "name": "毛球症"}, {"code": "046701", "name": "腹膜炎　感染性"}, {"code": "046702", "name": "外傷性"}, {"code": "046703", "name": "その他"}, {"code": "046800", "name": "脂肪壊死症"}, {"code": "046900", "name": "腸間膜血管閉塞症"}, {"code": "047001", "name": "黄疸　肝細胞性"}, {"code": "047002", "name": "閉塞性"}, {"code": "047003", "name": "溶血性"}, {"code": "047004", "name": "その他"}, {"code": "047101", "name": "肝炎　中毒性"}, {"code": "047102", "name": "食餌性"}, {"code": "047103", "name": "感染性"}, {"code": "047104", "name": "寄生虫性"}, {"code": "047105", "name": "血清(性)"}, {"code": "047106", "name": "その他"}, {"code": "047201", "name": "肝硬変　壊死後性"}, {"code": "047202", "name": "門脈性"}, {"code": "047203", "name": "胆汁性"}, {"code": "047204", "name": "寄生虫性"}, {"code": "047205", "name": "その他"}, {"code": "047300", "name": "肝破裂"}, {"code": "047400", "name": "脂肪肝"}, {"code": "047500", "name": "肝不全"}, {"code": "047600", "name": "肝膿瘍"}, {"code": "047700", "name": "その他肝臓疾患"}, {"code": "047800", "name": "膵炎"}, {"code": "047900", "name": "その他膵臓疾患"}, {"code": "048000", "name": "口腔･咽頭腫瘍"}, {"code": "048100", "name": "食道腫瘍"}, {"code": "048200", "name": "胃腫瘍"}, {"code": "048300", "name": "腸腫瘍"}, {"code": "048400", "name": "肝臓腫瘍"}, {"code": "048500", "name": "膵臓腫瘍"}, {"code": "048600", "name": "その他消化器腫瘍"}, {"code": "048700", "name": "鼠径ﾍﾙﾆｱ"}, {"code": "048800", "name": "腹壁ﾍﾙﾆｱ"}, {"code": "048900", "name": "その他消化器疾患"}]}, "05": {"name": "泌尿器病", "diseases": [{"code": "050100", "name": "ﾈﾌﾛｰｾﾞ症候群"}, {"code": "050200", "name": "急性腎不全"}, {"code": "050300", "name": "慢性腎不全"}, {"code": "050401", "name": "腎炎　化膿性"}, {"code": "050402", "name": "非化膿性"}, {"code": "050403", "name": "その他"}, {"code": "050500", "name": "その他の腎疾患"}, {"code": "050600", "name": "尿管炎"}, {"code": "050700", "name": "膀胱炎"}, {"code": "050800", "name": "膀胱麻痺"}, {"code": "050900", "name": "膀胱脱"}, {"code": "051000", "name": "膀胱破裂"}, {"code": "051100", "name": "尿道狭窄"}, {"code": "051200", "name": "尿道炎"}, {"code": "051300", "name": "腎臓腫瘍"}, {"code": "051400", "name": "尿管腫瘍"}, {"code": "051500", "name": "膀胱腫瘍"}, {"code": "051600", "name": "尿道腫瘍"}, {"code": "051700", "name": "尿毒症"}, {"code": "051801", "name": "尿石症　腎結石"}, {"code": "051802", "name": "膀胱結石"}, {"code": "051803", "name": "尿道結石"}, {"code": "051804", "name": "尿管結石"}, {"code": "051901", "name": "血尿症　腫瘍性"}, {"code": "051902", "name": "中毒性"}, {"code": "051903", "name": "その他"}, {"code": "052000", "name": "その他泌尿器疾患"}]}, "06": {"name": "生殖器病", "diseases": [{"code": "060100", "name": "前立腺炎"}, {"code": "060200", "name": "精巣機能減退症"}, {"code": "060300", "name": "精巣炎"}, {"code": "060400", "name": "精索炎"}, {"code": "060501", "name": "潜在精巣　片側性"}, {"code": "060502", "name": "両側性"}, {"code": "060600", "name": "精子異常症"}, {"code": "060700", "name": "精嚢炎"}, {"code": "060800", "name": "陰嚢炎"}, {"code": "060900", "name": "陰嚢水腫"}, {"code": "061000", "name": "陰嚢ﾍﾙﾆｱ"}, {"code": "061100", "name": "陰茎麻痺"}, {"code": "061200", "name": "包皮炎"}, {"code": "061300", "name": "前立腺腫瘍"}, {"code": "061400", "name": "精巣腫瘍"}, {"code": "061500", "name": "陰茎腫瘍"}, {"code": "061600", "name": "その他雄生殖器疾患"}, {"code": "061700", "name": "卵胞嚢腫"}, {"code": "061800", "name": "黄体嚢腫"}, {"code": "061900", "name": "卵巣発育不全"}, {"code": "062000", "name": "卵巣静止"}, {"code": "062100", "name": "卵巣萎縮"}, {"code": "062200", "name": "排卵遅延"}, {"code": "062300", "name": "無排卵"}, {"code": "062400", "name": "鈍性発情"}, {"code": "062500", "name": "発育不全黄体"}, {"code": "062600", "name": "嚢腫様黄体"}, {"code": "062700", "name": "黄体遺残"}, {"code": "062800", "name": "卵巣炎"}, {"code": "062900", "name": "卵管炎"}, {"code": "063000", "name": "卵管水腫"}, {"code": "063100", "name": "卵管蓄膿症"}, {"code": "063201", "name": "子宮内膜炎　急性ｶﾀﾙ性"}, {"code": "063202", "name": "急性化膿性"}, {"code": "063203", "name": "慢性ｶﾀﾙ性"}, {"code": "063204", "name": "慢性化膿性"}, {"code": "063205", "name": "慢性肥厚性"}, {"code": "063206", "name": "慢性萎縮性"}, {"code": "063207", "name": "潜在性"}, {"code": "063208", "name": "その他"}, {"code": "063300", "name": "子宮蓄膿症"}, {"code": "063400", "name": "子宮粘液症"}, {"code": "063500", "name": "子宮萎縮"}, {"code": "063600", "name": "子宮(筋)炎"}, {"code": "063700", "name": "子宮外膜炎"}, {"code": "063800", "name": "子宮頸管炎"}, {"code": "063900", "name": "子宮頸管狭窄"}, {"code": "064000", "name": "子宮頸管閉鎖症"}, {"code": "064100", "name": "膣炎"}, {"code": "064200", "name": "尿膣"}, {"code": "064300", "name": "膣脱"}, {"code": "064400", "name": "膣狭窄"}, {"code": "064500", "name": "膣嚢腫"}, {"code": "064600", "name": "陰門狭窄"}, {"code": "064700", "name": "顆粒性膣炎"}, {"code": "064800", "name": "会陰ﾍﾙﾆｱ"}, {"code": "064900", "name": "卵巣腫瘍"}, {"code": "065000", "name": "卵管腫瘍"}, {"code": "065100", "name": "子宮(頸管)腫瘍"}, {"code": "065200", "name": "膣腫瘍"}, {"code": "065300", "name": "その他雌生殖器疾患"}]}, "07": {"name": "泌乳器病", "diseases": [{"code": "070100", "name": "乳頭管狭窄"}, {"code": "070200", "name": "乳頭損傷"}, {"code": "070300", "name": "乳房損傷"}, {"code": "070401", "name": "甚急性乳房炎　黄色ﾌﾞﾄﾞｳ球菌"}, {"code": "070402", "name": "ﾚﾝｻ球菌"}, {"code": "070403", "name": "大腸菌"}, {"code": "070404", "name": "緑膿菌"}, {"code": "070405", "name": "ﾄｩﾙﾍﾟﾚﾗ･ﾋﾟｵｹﾞﾈｽ"}, {"code": "070406", "name": "ｺｱｸﾞﾗｰｾﾞ陰性ﾌﾞﾄﾞｳ球菌"}, {"code": "070407", "name": "その他細菌"}, {"code": "070408", "name": "真菌"}, {"code": "070409", "name": "マイコプラズマ"}, {"code": "070410", "name": "ウイルス"}, {"code": "070411", "name": "その他の微生物"}, {"code": "070501", "name": "急性乳房炎　黄色ﾌﾞﾄﾞｳ球菌"}, {"code": "070502", "name": "ﾚﾝｻ球菌"}, {"code": "070503", "name": "大腸菌"}, {"code": "070504", "name": "緑膿菌"}, {"code": "070505", "name": "ﾄｩﾙﾍﾟﾚﾗ･ﾋﾟｵｹﾞﾈｽ"}, {"code": "070506", "name": "ｺｱｸﾞﾗｰｾﾞ陰性ﾌﾞﾄﾞｳ球菌"}, {"code": "070507", "name": "その他細菌"}, {"code": "070508", "name": "真菌"}, {"code": "070509", "name": "マイコプラズマ"}, {"code": "070510", "name": "ウイルス"}, {"code": "070511", "name": "その他の微生物"}, {"code": "070601", "name": "慢性乳房炎　黄色ﾌﾞﾄﾞｳ球菌"}, {"code": "070602", "name": "ﾚﾝｻ球菌"}, {"code": "070603", "name": "大腸菌"}, {"code": "070604", "name": "緑膿菌"}, {"code": "070605", "name": "ﾄｩﾙﾍﾟﾚﾗ･ﾋﾟｵｹﾞﾈｽ"}, {"code": "070606", "name": "ｺｱｸﾞﾗｰｾﾞ陰性ﾌﾞﾄﾞｳ球菌"}, {"code": "070607", "name": "その他細菌"}, {"code": "070608", "name": "真菌"}, {"code": "070609", "name": "マイコプラズマ"}, {"code": "070610", "name": "ウイルス"}, {"code": "070611", "name": "その他の微生物"}, {"code": "070701", "name": "潜在性乳房炎　黄色ﾌﾞﾄﾞｳ球菌"}, {"code": "070702", "name": "ﾚﾝｻ球菌"}, {"code": "070703", "name": "大腸菌"}, {"code": "070704", "name": "緑膿菌"}, {"code": "070705", "name": "ﾄｩﾙﾍﾟﾚﾗ･ﾋﾟｵｹﾞﾈｽ"}, {"code": "070706", "name": "ｺｱｸﾞﾗｰｾﾞ陰性ﾌﾞﾄﾞｳ球菌"}, {"code": "070707", "name": "その他細菌"}, {"code": "070708", "name": "真菌"}, {"code": "070709", "name": "マイコプラズマ"}, {"code": "070710", "name": "ウイルス"}, {"code": "070711", "name": "その他の微生物"}, {"code": "070801", "name": "乾乳期乳房炎　黄色ﾌﾞﾄﾞｳ球菌"}, {"code": "070802", "name": "ﾚﾝｻ球菌"}, {"code": "070803", "name": "大腸菌"}, {"code": "070804", "name": "緑膿菌"}, {"code": "070805", "name": "ﾄｩﾙﾍﾟﾚﾗ･ﾋﾟｵｹﾞﾈｽ"}, {"code": "070806", "name": "ｺｱｸﾞﾗｰｾﾞ陰性ﾌﾞﾄﾞｳ球菌"}, {"code": "070807", "name": "その他細菌"}, {"code": "070808", "name": "真菌"}, {"code": "070809", "name": "マイコプラズマ"}, {"code": "070810", "name": "ウイルス"}, {"code": "070811", "name": "その他の微生物"}, {"code": "070901", "name": "未経産牛乳房炎　黄色ﾌﾞﾄﾞｳ球菌"}, {"code": "070902", "name": "ﾚﾝｻ球菌"}, {"code": "070903", "name": "大腸菌"}, {"code": "070904", "name": "緑膿菌"}, {"code": "070905", "name": "ﾄｩﾙﾍﾟﾚﾗ･ﾋﾟｵｹﾞﾈｽ"}, {"code": "070906", "name": "ｺｱｸﾞﾗｰｾﾞ陰性ﾌﾞﾄﾞｳ球菌"}, {"code": "070907", "name": "その他細菌"}, {"code": "070908", "name": "真菌"}, {"code": "070909", "name": "マイコプラズマ"}, {"code": "070910", "name": "ウイルス"}, {"code": "070911", "name": "その他の微生物"}, {"code": "071000", "name": "乳房水腫"}, {"code": "071100", "name": "黒痘疹"}, {"code": "071200", "name": "乳房嚢皮症"}, {"code": "071300", "name": "血乳症"}, {"code": "071400", "name": "無乳症"}, {"code": "071500", "name": "惜乳症"}, {"code": "071600", "name": "盲乳"}, {"code": "071700", "name": "乳腺腫瘍"}, {"code": "071800", "name": "その他泌乳器腫瘍"}, {"code": "071900", "name": "その他泌乳器疾患"}]}, "08": {"name": "妊娠､分娩期･産褥疾患", "diseases": [{"code": "080100", "name": "妊娠浮腫"}, {"code": "080200", "name": "妊娠中毒症"}, {"code": "080300", "name": "乳熱"}, {"code": "080401", "name": "ﾀﾞｳﾅｰ症候群　中毒性"}, {"code": "080402", "name": "分娩時損傷"}, {"code": "080403", "name": "その他"}, {"code": "080501", "name": "流産　感染性"}, {"code": "080502", "name": "寄生虫性"}, {"code": "080503", "name": "習慣性"}, {"code": "080504", "name": "外因性"}, {"code": "080505", "name": "その他"}, {"code": "080601", "name": "難産　胎子失位"}, {"code": "080602", "name": "胎子過大"}, {"code": "080603", "name": "胎子多胎"}, {"code": "080604", "name": "胎子奇形"}, {"code": "080605", "name": "産道異常"}, {"code": "080606", "name": "陣痛異常"}, {"code": "080607", "name": "その他"}, {"code": "080700", "name": "ﾐｲﾗ変性"}, {"code": "080800", "name": "胎児浸漬"}, {"code": "080900", "name": "胎膜水腫"}, {"code": "081000", "name": "気腫胎"}, {"code": "081100", "name": "その他胎子異常"}, {"code": "081200", "name": "長期在胎"}, {"code": "081300", "name": "子宮捻転"}, {"code": "081400", "name": "子宮脱"}, {"code": "081500", "name": "子宮破裂"}, {"code": "081600", "name": "子宮頸管裂創"}, {"code": "081700", "name": "膣裂創"}, {"code": "081800", "name": "会陰･陰門裂創"}, {"code": "081900", "name": "胎盤停滞"}, {"code": "082000", "name": "悪露停滞"}, {"code": "082100", "name": "産褥熱"}, {"code": "082200", "name": "その他妊娠･分娩･産後疾患"}]}, "09": {"name": "新生子異常", "diseases": [{"code": "090100", "name": "ﾐｲﾗ変性"}, {"code": "090200", "name": "胎子浸漬"}, {"code": "090300", "name": "胎膜水腫"}, {"code": "090400", "name": "気腫胎"}, {"code": "090500", "name": "その他胎子異常"}, {"code": "090600", "name": "脳水腫"}, {"code": "090700", "name": "脳欠損"}, {"code": "090800", "name": "小脳形成不全"}, {"code": "090900", "name": "全盲"}, {"code": "091000", "name": "両眼欠損"}, {"code": "091100", "name": "口蓋裂"}, {"code": "091200", "name": "歯牙発生異常"}, {"code": "091300", "name": "斜頸"}, {"code": "091400", "name": "脊椎湾曲"}, {"code": "091500", "name": "関節湾曲"}, {"code": "091600", "name": "反転性裂体"}, {"code": "091700", "name": "心臓奇形"}, {"code": "091800", "name": "心臓転位"}, {"code": "091900", "name": "重複(体)奇形"}, {"code": "092000", "name": "無形無心体"}, {"code": "092100", "name": "鎖肛"}, {"code": "092201", "name": "その他奇形　腸管形成不全"}, {"code": "092202", "name": "その他"}, {"code": "092300", "name": "新生子免疫不全症"}, {"code": "092400", "name": "新生子呼吸障害"}, {"code": "092500", "name": "新生子体温調節障害"}, {"code": "092600", "name": "新生子内分泌代謝障害"}, {"code": "092700", "name": "新生子血液障害"}, {"code": "092800", "name": "新生子栄養失調"}, {"code": "092900", "name": "新生子感染症"}, {"code": "093000", "name": "変形赤血球"}, {"code": "093100", "name": "臍帯炎"}, {"code": "093200", "name": "臍ﾍﾙﾆｱ"}, {"code": "093300", "name": "胎便停滞"}, {"code": "093400", "name": "子牛虚弱症候群"}, {"code": "093500", "name": "尿膜管遺残"}, {"code": "093600", "name": "その他の新生子疾患"}, {"code": "093700", "name": "胎子死"}]}, "10": {"name": "神経系病", "diseases": [{"code": "100100", "name": "外傷性脳脊髄損傷"}, {"code": "100200", "name": "頸髄症"}, {"code": "100300", "name": "変形性脊椎症"}, {"code": "100401", "name": "脳炎　化膿性"}, {"code": "100402", "name": "非化膿性"}, {"code": "100403", "name": "その他"}, {"code": "100500", "name": "脳脊髄炎"}, {"code": "100600", "name": "髄膜炎"}, {"code": "100700", "name": "大脳皮質壊死症"}, {"code": "100800", "name": "脳軟化症"}, {"code": "100900", "name": "癲癇"}, {"code": "101000", "name": "旋回病"}, {"code": "101100", "name": "顔面神経麻痺"}, {"code": "101200", "name": "三叉神経麻痺"}, {"code": "101300", "name": "肩甲上神経麻痺"}, {"code": "101400", "name": "ﾄｳ骨神経麻痺"}, {"code": "101500", "name": "閉鎖神経麻痺"}, {"code": "101600", "name": "大腿神経麻痺"}, {"code": "101700", "name": "座骨神経麻痺"}, {"code": "101800", "name": "腓骨神経麻痺"}, {"code": "101900", "name": "脛骨神経麻痺"}, {"code": "102000", "name": "その他末梢神経麻痺"}, {"code": "102100", "name": "脳腫瘍"}, {"code": "102200", "name": "脊髄腫瘍"}, {"code": "102300", "name": "末梢神経系腫瘍"}, {"code": "102400", "name": "その他神経系疾患"}]}, "11": {"name": "感覚器　眼･耳　病", "diseases": [{"code": "110100", "name": "眼瞼炎"}, {"code": "110200", "name": "眼瞼内反症"}, {"code": "110300", "name": "涙管炎"}, {"code": "110400", "name": "涙管狭窄"}, {"code": "110500", "name": "結膜炎"}, {"code": "110601", "name": "角膜炎　表層性"}, {"code": "110602", "name": "深層性"}, {"code": "110603", "name": "潰瘍性"}, {"code": "110604", "name": "その他"}, {"code": "110700", "name": "ﾌﾞﾄﾞｳ膜炎"}, {"code": "110800", "name": "緑内障"}, {"code": "110900", "name": "白内障"}, {"code": "111000", "name": "網膜剥離"}, {"code": "111100", "name": "黒内症"}, {"code": "111200", "name": "ｷｬﾝｻｰｱｲ"}, {"code": "111300", "name": "眼腫瘍"}, {"code": "111400", "name": "その他眼疾患"}, {"code": "111500", "name": "外耳炎"}, {"code": "111600", "name": "中耳炎"}, {"code": "111700", "name": "内耳炎"}, {"code": "111800", "name": "耳腫瘍"}, {"code": "111900", "name": "その他耳疾患"}]}, "12": {"name": "内分泌･代謝疾患", "diseases": [{"code": "120100", "name": "下垂体疾患"}, {"code": "120201", "name": "甲状腺疾患　機能亢進症"}, {"code": "120202", "name": "機能低下症"}, {"code": "120203", "name": "甲状腺炎"}, {"code": "120204", "name": "その他"}, {"code": "120300", "name": "上皮小体(副甲状腺)疾患"}, {"code": "120401", "name": "副腎疾患　皮質機能亢進症"}, {"code": "120402", "name": "皮質機能低下症"}, {"code": "120403", "name": "その他"}, {"code": "120500", "name": "下垂体腫瘍"}, {"code": "120600", "name": "甲状腺腫瘍"}, {"code": "120700", "name": "上皮小体腫瘍"}, {"code": "120800", "name": "副腎腫瘍"}, {"code": "120900", "name": "その他内分泌腺疾患"}, {"code": "121001", "name": "ｹﾄｰｼｽ　原発性"}, {"code": "121002", "name": "継続性"}, {"code": "121100", "name": "ｱﾐﾛｲﾄﾞｰｼｽ"}, {"code": "121200", "name": "糖尿病"}, {"code": "121300", "name": "白筋症"}, {"code": "121400", "name": "骨軟症"}, {"code": "121500", "name": "くる病"}, {"code": "121600", "name": "ﾊｲｴﾅ病"}, {"code": "121700", "name": "ﾋﾞﾀﾐﾝA欠乏症"}, {"code": "121800", "name": "ﾋﾞﾀﾐﾝE欠乏症"}, {"code": "121900", "name": "低ｶﾙｼｳﾑ血症"}, {"code": "122000", "name": "ﾏｸﾞﾈｼｳﾑ欠乏症"}, {"code": "122100", "name": "ｺﾊﾞﾙﾄ欠乏症"}, {"code": "122200", "name": "ｾﾚﾝ欠乏症"}, {"code": "122300", "name": "鉄欠乏症"}, {"code": "122400", "name": "銅欠乏症"}, {"code": "122500", "name": "低リン血症"}, {"code": "122600", "name": "その他代謝疾患"}, {"code": "122700", "name": "鶏の腹水症　NOSAIなし"}]}, "13": {"name": "運動器病", "diseases": [{"code": "130101", "name": "頭部骨折　頭蓋骨骨折"}, {"code": "130102", "name": "顔面骨骨折"}, {"code": "130103", "name": "下顎骨骨折"}, {"code": "130201", "name": "脊椎骨折　頸椎骨折"}, {"code": "130202", "name": "胸椎骨折"}, {"code": "130203", "name": "腰椎骨折"}, {"code": "130204", "name": "仙椎骨折"}, {"code": "130205", "name": "尾骨骨折"}, {"code": "130301", "name": "前肢骨骨折　肩胛骨骨折"}, {"code": "130302", "name": "上腕骨骨折"}, {"code": "130303", "name": "橈骨骨折"}, {"code": "130304", "name": "尺骨骨折"}, {"code": "130305", "name": "手根骨骨折"}, {"code": "130306", "name": "中手骨骨折"}, {"code": "130307", "name": "指骨骨折"}, {"code": "130401", "name": "後肢骨骨折　大腿骨骨折"}, {"code": "130402", "name": "脛骨骨折"}, {"code": "130403", "name": "腓骨骨折"}, {"code": "130404", "name": "足根骨骨折"}, {"code": "130405", "name": "中足骨骨折"}, {"code": "130406", "name": "趾骨骨折"}, {"code": "130501", "name": "その他骨折　肋骨骨折"}, {"code": "130502", "name": "胸骨骨折"}, {"code": "130503", "name": "骨盤骨折"}, {"code": "130600", "name": "骨膜炎"}, {"code": "130700", "name": "骨髄炎"}, {"code": "130800", "name": "管骨瘤"}, {"code": "130900", "name": "趾骨瘤"}, {"code": "131000", "name": "その他骨疾患"}, {"code": "131100", "name": "股関節脱臼"}, {"code": "131200", "name": "膝蓋骨外方脱臼"}, {"code": "131300", "name": "膝蓋骨内方脱臼"}, {"code": "131400", "name": "膝蓋骨上方固定"}, {"code": "131500", "name": "球節脱臼"}, {"code": "131600", "name": "その他脱臼"}, {"code": "131700", "name": "前十字靱帯断裂"}, {"code": "131800", "name": "その他靱帯断裂"}, {"code": "131900", "name": "捻挫"}, {"code": "132001", "name": "関節炎　感染性"}, {"code": "132002", "name": "非感染性"}, {"code": "132003", "name": "その他"}, {"code": "132101", "name": "関節周囲炎　感染性"}, {"code": "132102", "name": "非感染性"}, {"code": "132103", "name": "その他"}, {"code": "132200", "name": "滑液嚢(粘液嚢)炎"}, {"code": "132300", "name": "変形性関節炎"}, {"code": "132401", "name": "骨軟骨症(炎)　離断性骨軟骨症(炎)"}, {"code": "132402", "name": "骨端症(炎)"}, {"code": "132403", "name": "その他"}, {"code": "132500", "name": "飛節内(外)腫"}, {"code": "132600", "name": "その他関節疾患"}, {"code": "132701", "name": "筋断裂　腓腹筋"}, {"code": "132702", "name": "内転筋"}, {"code": "132703", "name": "第三腓骨筋"}, {"code": "132704", "name": "その他"}, {"code": "132801", "name": "筋炎　感染性"}, {"code": "132802", "name": "非感染性"}, {"code": "132803", "name": "その他"}, {"code": "132901", "name": "腱断裂　ｱｷﾚｽ腱"}, {"code": "132902", "name": "その他"}, {"code": "133000", "name": "腱炎"}, {"code": "133100", "name": "腱鞘炎"}, {"code": "133200", "name": "屈腱短縮症（突球）"}, {"code": "133300", "name": "その他筋･腱疾患"}, {"code": "133400", "name": "趾間皮膚炎"}, {"code": "133500", "name": "趾間ﾌﾚｸﾞﾓｰﾈ"}, {"code": "133600", "name": "趾皮膚炎"}, {"code": "133700", "name": "趾間過形成"}, {"code": "133800", "name": "蹄叉腐爛"}, {"code": "133900", "name": "蹄葉炎"}, {"code": "134000", "name": "裂蹄"}, {"code": "134100", "name": "蹄球び爛(腐爛)"}, {"code": "134200", "name": "挫跖"}, {"code": "134300", "name": "化膿性蹄皮炎"}, {"code": "134400", "name": "白帯病"}, {"code": "134500", "name": "蹄底潰瘍"}, {"code": "134600", "name": "その他蹄疾患"}, {"code": "134700", "name": "骨腫瘍"}, {"code": "134800", "name": "関節腫瘍"}, {"code": "134900", "name": "筋･腱腫瘍"}, {"code": "135000", "name": "蹄腫瘍"}, {"code": "135100", "name": "腰痿"}, {"code": "135200", "name": "肩跛行"}, {"code": "135300", "name": "寛跛行"}, {"code": "135400", "name": "その他運動器病"}]}, "14": {"name": "皮膚病", "diseases": [{"code": "140100", "name": "粃ｺｳ疹"}, {"code": "140200", "name": "湿疹"}, {"code": "140300", "name": "硬皮症"}, {"code": "140400", "name": "蕁麻疹"}, {"code": "140500", "name": "膿皮症"}, {"code": "140601", "name": "皮膚炎　感染症"}, {"code": "140602", "name": "栄養性"}, {"code": "140603", "name": "ｱﾚﾙｷﾞｰ性"}, {"code": "140604", "name": "光線過敏症"}, {"code": "140605", "name": "その他"}, {"code": "140701", "name": "角化異常　角化亢進症"}, {"code": "140702", "name": "錯覚化症"}, {"code": "140800", "name": "乳頭腫"}, {"code": "140900", "name": "皮膚腫瘍"}, {"code": "141000", "name": "脱毛症"}, {"code": "141100", "name": "座瘡"}, {"code": "141200", "name": "その他皮膚疾患"}, {"code": "141300", "name": "膿瘍"}, {"code": "141400", "name": "皮下気腫"}, {"code": "141500", "name": "皮下出血"}, {"code": "141600", "name": "象皮病"}, {"code": "141700", "name": "ﾌﾚｸﾞﾓｰﾈ"}, {"code": "141800", "name": "褥創"}, {"code": "141900", "name": "項腫"}, {"code": "142000", "name": "その他皮膚組織疾患"}]}, "15": {"name": "中毒", "diseases": [{"code": "150100", "name": "ﾜﾗﾋﾞ中毒"}, {"code": "150200", "name": "ｱｾﾋﾞ中毒"}, {"code": "150300", "name": "ﾄﾞｸｾﾞﾘ中毒"}, {"code": "150400", "name": "ｷｮｳﾁｸﾄｳ中毒"}, {"code": "150500", "name": "ﾀﾏﾈｷﾞ中毒"}, {"code": "150600", "name": "その他植物中毒"}, {"code": "150700", "name": "農薬中毒"}, {"code": "150800", "name": "除草剤中毒"}, {"code": "150900", "name": "殺鼠剤中毒"}, {"code": "151000", "name": "防腐剤中毒"}, {"code": "151100", "name": "飼料添加剤中毒"}, {"code": "151200", "name": "石油･石油製品中毒"}, {"code": "151300", "name": "消毒薬中毒"}, {"code": "151400", "name": "その他薬物中毒"}, {"code": "151500", "name": "鉛中毒"}, {"code": "151600", "name": "銅中毒"}, {"code": "151700", "name": "ﾘﾝ中毒"}, {"code": "151800", "name": "塩化ﾅﾄﾘｳﾑ中毒"}, {"code": "151900", "name": "尿素中毒"}, {"code": "152000", "name": "硝酸塩中毒"}, {"code": "152100", "name": "青酸中毒"}, {"code": "152201", "name": "ｶﾋﾞ中毒　ｱﾌﾗﾄｷｼﾝ"}, {"code": "152202", "name": "その他"}, {"code": "152300", "name": "蛇毒中毒"}, {"code": "152400", "name": "ｶﾞｽ中毒"}, {"code": "152500", "name": "その他中毒"}]}, "16": {"name": "ウイルス病", "diseases": [{"code": "160100", "name": "牛痘"}, {"code": "160400", "name": "偽牛痘"}, {"code": "160600", "name": "豚痘"}, {"code": "160900", "name": "その他ﾎﾟｯｸｽｳｲﾙｽ感染症"}, {"code": "161400", "name": "馬媾疹"}, {"code": "161500", "name": "豚ｻｲﾄﾒｶﾞﾛｳｲﾙｽ病"}, {"code": "161900", "name": "その他ﾍﾙﾍﾟｽｳｲﾙｽ感染症"}, {"code": "162000", "name": "牛ｱﾃﾞﾉｳｲﾙｽ病"}, {"code": "162200", "name": "牛乳頭腫症"}, {"code": "162400", "name": "牛ﾊﾟﾙﾎﾞｳｲﾙｽ病"}, {"code": "162500", "name": "豚ﾊﾟﾙﾎﾞｳｲﾙｽ病"}, {"code": "163100", "name": "馬脳症"}, {"code": "163200", "name": "牛ﾛﾀｳｲﾙｽ病"}, {"code": "163300", "name": "馬ﾛﾀｳｲﾙｽ病"}, {"code": "163400", "name": "豚ﾛﾀｳｲﾙｽ病"}, {"code": "163700", "name": "その他ﾚｵｳｲﾙｽ感染症"}, {"code": "163900", "name": "ｹﾞﾀｳｲﾙｽ病"}, {"code": "165000", "name": "豚伝染性脳脊髄炎"}, {"code": "165300", "name": "その他ｺﾛﾅｳｲﾙｽ感染症"}, {"code": "165500", "name": "豚ｲﾝﾌﾙｴﾝｻﾞ"}, {"code": "165900", "name": "牛ﾊﾟﾗｲﾝﾌﾙｴﾝｻﾞ"}, {"code": "166000", "name": "牛RSｳｲﾙｽ病"}, {"code": "167700", "name": "豚の脳心筋炎"}, {"code": "168000", "name": "牛ﾗｲﾉｳｲﾙｽ病"}, {"code": "168100", "name": "馬ﾗｲﾉｳｲﾙｽ病"}, {"code": "168500", "name": "ﾎﾟﾄﾏｯｸ熱"}, {"code": "168600", "name": "Ｑ熱"}, {"code": "168700", "name": "ｱﾅﾌﾟﾗｽﾞﾏ病"}, {"code": "168800", "name": "その他ｱﾅﾌﾟﾗｽﾞﾏ病"}, {"code": "168900", "name": "ｴﾍﾟﾘｽﾛｿﾞｰﾝ病"}, {"code": "169201", "name": "ｸﾗﾐｼﾞｱ病　流産型"}, {"code": "169202", "name": "脳脊髄炎型"}, {"code": "169203", "name": "その他"}, {"code": "169800", "name": "その他ｳｲﾙｽ感染症　その他"}]}, "17": {"name": "細菌･真菌病", "diseases": [{"code": "170200", "name": "豚ﾏｲｺﾌﾟﾗｽﾞﾏ肺炎"}, {"code": "170300", "name": "牛ﾏｲｺﾌﾟﾗｽﾞﾏ肺炎"}, {"code": "170401", "name": "その他ﾏｲｺﾌﾟﾗｽﾞﾏ感染症　関節炎型"}, {"code": "170402", "name": "その他"}, {"code": "170500", "name": "ｳﾚｱﾌﾟﾗｽﾞﾏ感染症"}, {"code": "171000", "name": "ﾎﾞﾚﾘｱ症"}, {"code": "171100", "name": "ﾚﾌﾟﾄｽﾋﾟﾗ症"}, {"code": "171500", "name": "増殖性出血性腸炎"}, {"code": "172001", "name": "その他ｶﾝﾋﾟﾛﾊﾞｸﾀｰ症　不妊型"}, {"code": "172002", "name": "流産型"}, {"code": "172003", "name": "胃腸炎型"}, {"code": "172004", "name": "その他"}, {"code": "172301", "name": "緑膿菌症　創傷感染型"}, {"code": "172302", "name": "敗血症型"}, {"code": "172303", "name": "その他"}, {"code": "172400", "name": "牛伝染性角結膜炎"}, {"code": "173100", "name": "大腸菌性下痢"}, {"code": "173200", "name": "浮腫病"}, {"code": "173501", "name": "その他大腸菌症　敗血症型"}, {"code": "173502", "name": "その他"}, {"code": "174101", "name": "その他ｻﾙﾓﾈﾗ感染症　敗血症型"}, {"code": "174102", "name": "下痢症型"}, {"code": "174103", "name": "流産型"}, {"code": "174104", "name": "関節炎型"}, {"code": "174105", "name": "その他"}, {"code": "174501", "name": "その他ﾊﾟｽﾂﾚﾗ感染症　敗血症型"}, {"code": "174502", "name": "肺炎型"}, {"code": "174503", "name": "その他"}, {"code": "174600", "name": "豚ｱｸﾁﾉﾊﾞﾁﾙｽ症　豚胸膜肺炎"}, {"code": "174700", "name": "子馬病"}, {"code": "174901", "name": "その他ｱｸﾁﾉﾊﾞﾁﾙｽ感染症　敗血症型"}, {"code": "174902", "name": "肉芽腫形成型"}, {"code": "174903", "name": "心内膜炎型"}, {"code": "174904", "name": "肺炎型"}, {"code": "174905", "name": "その他"}, {"code": "175000", "name": "ﾍﾓﾌｨﾙｽ･ｿﾑﾅｽ感染症　脳脊髄膜炎"}, {"code": "175100", "name": "ﾍﾓﾌｨﾙｽ･ﾊﾟﾗｽｲｽ感染症　グレーサー病"}, {"code": "175400", "name": "肝膿瘍"}, {"code": "175700", "name": "滲出性表皮炎"}, {"code": "175800", "name": "化膿性多発性関節炎"}, {"code": "176001", "name": "その他ﾌﾞﾄﾞｳ球菌症　敗血症型"}, {"code": "176002", "name": "化膿型"}, {"code": "176003", "name": "その他"}, {"code": "176100", "name": "腺疫"}, {"code": "176301", "name": "その他ﾚﾝｻ球菌症　敗血症型"}, {"code": "176302", "name": "髄膜炎型"}, {"code": "176303", "name": "関節炎型"}, {"code": "176304", "name": "心内膜炎型"}, {"code": "176305", "name": "その他"}, {"code": "176500", "name": "壊死性腸炎"}, {"code": "176700", "name": "壊死性肝炎"}, {"code": "176800", "name": "悪性水腫"}, {"code": "177201", "name": "ﾘｽﾃﾘｱ症　敗血症型"}, {"code": "177202", "name": "脳脊髄炎型"}, {"code": "177203", "name": "その他"}, {"code": "177400", "name": "牛腎盃腎炎"}, {"code": "177500", "name": "腎膿瘍"}, {"code": "177600", "name": "潰瘍性ﾘﾝﾊﾟ管炎"}, {"code": "177700", "name": "放線菌病"}, {"code": "177800", "name": "ﾄｩﾙﾍﾟﾚﾗ･ﾋﾟｵｹﾞﾈｽ感染症"}, {"code": "178100", "name": "豚抗酸菌症"}, {"code": "178200", "name": "ﾉｶﾙｼﾞｱ症"}, {"code": "178300", "name": "ﾃﾞﾙﾏﾄﾌｨﾙｽ症"}, {"code": "178400", "name": "ﾛﾄﾞｺｯｶｽ感染症"}, {"code": "178500", "name": "ﾃｨｻﾞｰ病"}, {"code": "178900", "name": "その他細菌感染症"}, {"code": "179000", "name": "鶏ﾌﾞﾄﾞｳ球菌症　NOSAIなし"}, {"code": "179001", "name": "ｶﾝｼﾞﾀﾞ症　消化器型"}, {"code": "179002", "name": "皮膚型"}, {"code": "179003", "name": "呼吸器型"}, {"code": "179004", "name": "流産型"}, {"code": "179005", "name": "その他"}, {"code": "179101", "name": "ﾑｺｰﾙ症　皮膚型"}, {"code": "179102", "name": "消化器型"}, {"code": "179103", "name": "呼吸器型"}, {"code": "179104", "name": "その他"}, {"code": "179201", "name": "ｸﾘﾌﾟﾄｺｯｶｽ症　皮膚型"}, {"code": "179202", "name": "呼吸器型"}, {"code": "179203", "name": "その他"}, {"code": "179401", "name": "ﾋｽﾄﾌﾟﾗｽﾞﾏ症　皮膚型"}, {"code": "179402", "name": "呼吸器型"}, {"code": "179403", "name": "脳脊髄炎型"}, {"code": "179404", "name": "ﾘﾝﾊﾟ節型"}, {"code": "179405", "name": "その他"}, {"code": "179500", "name": "皮膚糸状菌症"}, {"code": "179601", "name": "ｱｽﾍﾟﾙｷﾞﾙｽ症　皮膚型"}, {"code": "179602", "name": "呼吸器型"}, {"code": "179603", "name": "消化器型"}, {"code": "179604", "name": "流産型"}, {"code": "179605", "name": "全身型"}, {"code": "179606", "name": "その他"}, {"code": "179900", "name": "その他真菌感染症"}]}, "18": {"name": "原虫･寄生虫病", "diseases": [{"code": "180300", "name": "その他ﾊﾞﾍﾞｼｱ病"}, {"code": "180400", "name": "その他ﾀｲﾚﾘｱ病"}, {"code": "180800", "name": "住肉胞子虫病"}, {"code": "180900", "name": "ｺｸｼｼﾞｳﾑ病"}, {"code": "181000", "name": "ｸﾘﾌﾟﾄｽﾎﾟﾘｼﾞｳﾑ病"}, {"code": "181200", "name": "ﾊﾞﾗﾝﾁｼﾞｳﾑ病"}, {"code": "181300", "name": "ﾊﾞｸｽﾄﾈﾗ病"}, {"code": "181700", "name": "その他原虫感染症"}, {"code": "181800", "name": "牛鞭虫症"}, {"code": "181900", "name": "豚鞭虫症"}, {"code": "182000", "name": "旋毛虫症"}, {"code": "182100", "name": "毛様線虫症"}, {"code": "182200", "name": "乳頭糞線虫症"}, {"code": "182300", "name": "馬糞線虫症"}, {"code": "182400", "name": "豚糞線虫症"}, {"code": "182500", "name": "牛回虫症"}, {"code": "182600", "name": "豚回虫症"}, {"code": "182700", "name": "馬回虫症"}, {"code": "182900", "name": "豚胃虫症"}, {"code": "183000", "name": "馬胃虫症"}, {"code": "183200", "name": "咽頭糸状虫症"}, {"code": "183300", "name": "馬糸状虫症"}, {"code": "183400", "name": "頸部糸状虫症"}, {"code": "183500", "name": "ﾊﾟﾗﾌｨﾗﾘｱ症"}, {"code": "183600", "name": "脳脊髄糸状虫症"}, {"code": "183700", "name": "溷ｾｲ虫症"}, {"code": "183800", "name": "牛腸結節虫症"}, {"code": "183900", "name": "豚腸結節虫症"}, {"code": "184000", "name": "牛鈎虫症"}, {"code": "184100", "name": "豚腎虫症"}, {"code": "184200", "name": "ﾛﾃﾞｼｱ眼虫症"}, {"code": "184300", "name": "東洋眼虫症"}, {"code": "184400", "name": "馬蟯虫症"}, {"code": "184500", "name": "馬円虫症"}, {"code": "184600", "name": "牛肺虫症"}, {"code": "184700", "name": "豚肺虫症"}, {"code": "184800", "name": "馬肺虫症"}, {"code": "184900", "name": "ｵｽﾃﾙﾀｰｸﾞ胃虫症"}, {"code": "185000", "name": "捻転胃虫症"}, {"code": "185100", "name": "牛捻転胃虫症"}, {"code": "185200", "name": "ｸｰﾍﾟﾘｱ症"}, {"code": "185300", "name": "ﾈﾏﾄｼﾞﾙｽ症"}, {"code": "185600", "name": "その他線虫感染症"}, {"code": "185700", "name": "葉状条虫症"}, {"code": "185800", "name": "大条虫症"}, {"code": "185900", "name": "乳頭条虫症"}, {"code": "186000", "name": "拡張条虫症"}, {"code": "186100", "name": "ﾍﾞﾈﾃﾞﾝ条虫症"}, {"code": "186200", "name": "裸頭条虫症"}, {"code": "186300", "name": "牛嚢虫症"}, {"code": "186400", "name": "豚嚢虫症"}, {"code": "186500", "name": "共尾虫症"}, {"code": "186600", "name": "細頸嚢虫症"}, {"code": "186700", "name": "ｴｷﾉｺｯｸｽ症"}, {"code": "187100", "name": "その他条虫感染症"}, {"code": "187200", "name": "日本住血吸虫症"}, {"code": "187300", "name": "双口吸虫症"}, {"code": "187400", "name": "肝蛭症"}, {"code": "187500", "name": "肝吸虫症"}, {"code": "187600", "name": "槍形吸虫症"}, {"code": "187700", "name": "膵蛭症"}, {"code": "187800", "name": "肺吸虫症"}, {"code": "188200", "name": "その他吸虫感染症"}, {"code": "188300", "name": "大鈎頭虫症"}, {"code": "188700", "name": "その他鈎頭虫感染症"}, {"code": "188800", "name": "ﾏﾀﾞﾆ寄生"}, {"code": "188900", "name": "牛疥癬症"}, {"code": "189000", "name": "馬疥癬症"}, {"code": "189100", "name": "豚疥癬症"}, {"code": "189200", "name": "毛包虫症"}, {"code": "189300", "name": "ｼﾗﾐ寄生"}, {"code": "189400", "name": "ﾊｼﾞﾗﾐ寄生"}, {"code": "189500", "name": "豚ｼﾞﾗﾐ寄生"}, {"code": "189700", "name": "馬ﾊﾞｴ幼虫症"}, {"code": "189900", "name": "その他節足動物寄生"}]}, "19": {"name": "外傷不慮その他", "diseases": [{"code": "190100", "name": "切創"}, {"code": "190200", "name": "刺創"}, {"code": "190300", "name": "踏創"}, {"code": "190401", "name": "挫創　開放性"}, {"code": "190402", "name": "非開放性"}, {"code": "190500", "name": "裂創"}, {"code": "190600", "name": "咬創"}, {"code": "190700", "name": "縛創"}, {"code": "190800", "name": "銃創"}, {"code": "190900", "name": "鞍創"}, {"code": "191000", "name": "火傷"}, {"code": "191100", "name": "凍傷"}, {"code": "191200", "name": "角損傷"}, {"code": "191300", "name": "電撃（落雷）"}, {"code": "191400", "name": "熱射病"}, {"code": "191500", "name": "日射病"}, {"code": "191600", "name": "失血死"}, {"code": "191700", "name": "焼死"}, {"code": "191800", "name": "凍死"}, {"code": "191900", "name": "墜死"}, {"code": "192000", "name": "溺死"}, {"code": "192100", "name": "縊死"}, {"code": "192200", "name": "窒息死"}, {"code": "192300", "name": "轢死"}, {"code": "192400", "name": "圧死"}, {"code": "192500", "name": "闘争死"}, {"code": "192600", "name": "放牧死"}, {"code": "192700", "name": "老衰死"}, {"code": "192801", "name": "鳥獣害　カラス"}, {"code": "192802", "name": "キツネ"}, {"code": "192803", "name": "クマ"}, {"code": "192804", "name": "イノシシ"}, {"code": "192805", "name": "その他"}, {"code": "192901", "name": "医薬品等副作用　抗菌性物質"}, {"code": "192902", "name": "ﾎﾙﾓﾝ類"}, {"code": "192903", "name": "駆虫薬"}, {"code": "192904", "name": "ﾜｸﾁﾝ類"}, {"code": "192905", "name": "消毒薬"}, {"code": "192906", "name": "その他"}, {"code": "193000", "name": "盗難"}, {"code": "193100", "name": "行方不明"}, {"code": "193200", "name": "風水害によるもの"}, {"code": "193400", "name": "その他気象上の災害によるもの"}, {"code": "193800", "name": "火災によるもの"}, {"code": "193901", "name": "その他　画像診断"}, {"code": "193902", "name": "その他"}]}};
+
+
+// ===== Firebase =====
+const firebaseConfig = {
+  apiKey: "AIzaSyCer9Gz8nMbP3hBod3O_66oVQGEKsUfXVo",
+  authDomain: "breeding-manager5.firebaseapp.com",
+  databaseURL: "https://breeding-manager5-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "breeding-manager5",
+  storageBucket: "breeding-manager5.firebasestorage.app",
+  messagingSenderId: "663663293010",
+  appId: "1:663663293010:web:eaef68dee692fe1322258b"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+let vetDbRef = null;
+let uid = null;
+
+// ===== データ =====
+let drugs = {};      // vetDrugs: { drugId: { name, category, wdMeat, wdMilk, unit, threshold, usage } }
+let movements = {};  // vetStockMovements: { movId: { drugId, type, qty, date, memo, cowId, treatId } }
+let treatments = {}; // vetTreatments: { treatId: { cowId, date, drugs:[{drugId,qty}], memo, wdMeatEnd, wdMilkEnd } }
+let cows = [];       // breeding-manager2のcowsを参照
+let calves = [];     // breeding-manager2のcalvesを参照
+
+// 親牛＋子牛の統合リスト
+function getAllAnimals() {
+  const calvesFormatted = calves.map(c => ({
+    id: c.id || c.nationalId || '',
+    name: c.name || '',
+    nationalId: c.nationalId || '',
+    dob: c.birthDate || c.dob || '',
+    breed: c.breed || '',
+    sex: c.sex || '',
+    isCalf: true,
+  }));
+  return [...cows, ...calvesFormatted];
+}
+
+function today() {
+  return new Date().toLocaleDateString('sv-SE');
+}
+
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toLocaleDateString('sv-SE');
+}
+
+function fmtDate(s) {
+  if (!s) return '—';
+  const [y, m, d] = s.split('-');
+  return `${y}/${m}/${d}`;
+}
+
+function cowName(cowId) {
+  const all = getAllAnimals();
+  const c = all.find(c => c.id === cowId || c.nationalId === cowId);
+  if (!c) return cowId;
+  const tag = c.nationalId ? c.nationalId.slice(-4) : '';
+  return `${cowId}${c.name ? ' ' + c.name : ''}${tag ? ' [' + tag + ']' : ''}`;
+}
+
+function cowDisplayShort(cowId) {
+  const all = getAllAnimals();
+  const c = all.find(c => c.id === cowId);
+  if (!c) return cowId;
+  return `${cowId}${c.name ? ' ' + c.name : ''}`;
+}
+
+// 月齢/日齢を計算
+function calcAge(dob) {
+  if (!dob) return '';
+  const birth = new Date(dob + 'T00:00:00');
+  const now = new Date();
+  const days = Math.floor((now - birth) / 86400000);
+  if (days < 90) return `${days}日齢`;
+  const months = Math.floor(days / 30.4);
+  return `${months}ヶ月齢`;
+}
+
+// ===== Firebase同期 =====
+function setSyncStatus(s) {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  if (s === 'ok') { el.textContent = '✓ 同期済'; el.className = 'sync-status ok'; }
+  else if (s === 'ing') { el.textContent = '⟳ 同期中'; el.className = 'sync-status ing'; }
+  else { el.textContent = '✗ エラー'; el.className = 'sync-status err'; }
+}
+
+// breeding-manager2と同じUIDを直接使用
+const FIXED_UID = 'pTuJXKTc71dhhFfGL1KbesQnFI63';
+
+auth.signInAnonymously().then(() => {
+  uid = FIXED_UID;
+  vetDbRef = db.ref('vet/' + uid);
+
+  // breeding-manager2のcowsを読み込む
+  // breeding-manager2のcowsとcalvesを読み込む
+  Promise.all([
+    db.ref('data/' + uid + '/cows').once('value'),
+    db.ref('data/' + uid + '/calves').once('value'),
+  ]).then(([cowsSnap, calvesSnap]) => {
+    const rawCows = cowsSnap.val();
+    if (rawCows) {
+      try { cows = typeof rawCows === 'string' ? JSON.parse(rawCows) : rawCows; }
+      catch(e) { cows = []; }
+    }
+    const rawCalves = calvesSnap.val();
+    if (rawCalves) {
+      try { calves = typeof rawCalves === 'string' ? JSON.parse(rawCalves) : rawCalves; }
+      catch(e) { calves = []; }
+    }
+    renderCowFilter();
+  });
+
+  // vetデータをリアルタイム同期
+  vetDbRef.on('value', snap => {
+    const d = snap.val() || {};
+    drugs = d.drugs || {};
+    movements = d.movements || {};
+    treatments = d.treatments || {};
+    setSyncStatus('ok');
+    renderAll();
+    // 自動転帰チェック（最終診療から30日経過で治癒に自動設定）
+    setTimeout(checkAutoOutcome, 3000);
+  }, () => setSyncStatus('err'));
+
+}).catch(() => setSyncStatus('err'));
+
+// リダイレクト後の結果を処理
+auth.getRedirectResult().catch(e => console.warn('redirect:', e));
+
+function saveVet(updates) {
+  if (!vetDbRef) return Promise.reject('not connected');
+  setSyncStatus('ing');
+  return vetDbRef.update(updates).then(() => setSyncStatus('ok')).catch(() => setSyncStatus('err'));
+}
+
+// ===== タブ切替 =====
+function showTab(tab) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + tab).classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  renderAll();
+}
+
+// ===== モーダル =====
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'modal-treat') initTreatModal();
+  if (id === 'modal-stock-in') initStockInModal();
+  if (id === 'modal-drug-edit' && !document.getElementById('drug-edit-id').value) clearDrugForm();
+}
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) el.classList.remove('open'); });
+});
+
+// ===== 在庫計算 =====
+function calcStock(drugId) {
+  let qty = 0;
+  Object.values(movements).forEach(m => {
+    if (m.drugId !== drugId) return;
+    qty += (m.qty || 0);
+  });
+  return qty;
+}
+
+function getDrugStock() {
+  const result = {};
+  Object.entries(drugs).forEach(([id, d]) => {
+    result[id] = { ...d, id, stock: calcStock(id) };
+  });
+  return result;
+}
+
+// ===== 休薬期間チェック =====
+function getWithdrawalCows() {
+  const todayStr = today();
+  const wdCows = {};
+  // 全牛のIDを収集
+  const cowIds = new Set(Object.values(treatments).map(t => t.cowId));
+  cowIds.forEach(cowId => {
+    const { meatEnd, milkEnd } = calcWithdrawal(cowId);
+    if ((meatEnd && meatEnd >= todayStr) || (milkEnd && milkEnd >= todayStr)) {
+      wdCows[cowId] = { cowId, meatEnd, milkEnd };
+    }
+  });
+  return Object.values(wdCows);
+}
+
+// ===== レンダリング =====
+function renderAll() {
+  renderHome();
+  renderTreatList();
+  renderStockList();
+  renderDrugList();
+  renderHistory();
+}
+
+function renderHome() {
+  const todayStr = today();
+  const thisMonth = todayStr.slice(0, 7);
+  const wdCows = getWithdrawalCows();
+  const stockMap = getDrugStock();
+  const lowDrugs = Object.values(stockMap).filter(d => d.threshold > 0 && d.stock <= d.threshold);
+  const monthTreats = Object.values(treatments).filter(t => (t.date || '').startsWith(thisMonth));
+
+  document.getElementById('stat-drugs').textContent = Object.keys(drugs).length;
+  document.getElementById('stat-treats').textContent = monthTreats.length;
+  document.getElementById('stat-wd').textContent = wdCows.length;
+  document.getElementById('stat-low').textContent = lowDrugs.length;
+
+  // 休薬期間アラート
+  const wdEl = document.getElementById('home-withdrawal-alerts');
+  if (wdCows.length > 0) {
+    wdEl.innerHTML = `<div class="withdrawal-banner">
+      <h3>⚠️ 休薬期間中の牛（${wdCows.length}頭）</h3>
+      ${wdCows.map(w => `
+        <div class="alert-item">
+          <strong>${cowName(w.cowId)}</strong>
+          ${w.meatEnd ? `<span class="chip chip-meat">食肉 ${fmtDate(w.meatEnd)}まで</span>` : ''}
+          ${w.milkEnd ? `<span class="chip chip-milk">搾乳 ${fmtDate(w.milkEnd)}まで</span>` : ''}
+        </div>`).join('')}
+    </div>`;
+  } else {
+    wdEl.innerHTML = '';
+  }
+
+  // 在庫アラート
+  const stEl = document.getElementById('home-stock-alerts');
+  if (lowDrugs.length > 0) {
+    stEl.innerHTML = `<div class="alert-banner">
+      <h3>📉 要発注薬品（${lowDrugs.length}品目）</h3>
+      ${lowDrugs.map(d => `<div class="alert-item">${d.name} — 残り${d.stock}${d.unit||''}</div>`).join('')}
+    </div>`;
+  } else {
+    stEl.innerHTML = '';
+  }
+}
+
+function renderTreatList(q = '') {
+  const el = document.getElementById('treat-list');
+  if (!el) return;
+  const todayStr = today();
+  let list = Object.entries(treatments).map(([id, t]) => ({ id, ...t }))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (q) {
+    const lq = q.toLowerCase();
+    list = list.filter(t => cowName(t.cowId).toLowerCase().includes(lq));
+  }
+  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">処置記録がありません</p>'; return; }
+  el.innerHTML = list.slice(0, 50).map(t => {
+    const { meatEnd, milkEnd } = calcWithdrawal(t.cowId);
+    const meatActive = meatEnd && meatEnd >= today();
+    const milkActive = milkEnd && milkEnd >= today();
+    const drugNames = (t.drugs || []).map(d => drugs[d.drugId]?.name || d.drugId).join('、');
+    return `<div class="treat-card" onclick="openTreatDetail('${t.id}')">
+      <div class="treat-header">
+        <div class="treat-cow">${cowDisplayShort(t.cowId)}</div>
+        <div class="treat-date">${fmtDate(t.date)}</div>
+      </div>
+      <div class="treat-drug">💊 ${drugNames}</div>
+      ${meatActive ? `<div class="treat-wd active">🥩 食肉休薬 ${fmtDate(meatEnd)}まで</div>` : ''}
+      ${milkActive ? `<div class="treat-wd active">🥛 搾乳休薬 ${fmtDate(milkEnd)}まで</div>` : ''}
+      ${!meatActive && !milkActive && (meatEnd || milkEnd) ? `<div class="treat-wd done">✓ 休薬期間終了</div>` : ''}
+      ${t.memo ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">${t.memo}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderStockList(q = '') {
+  const el = document.getElementById('stock-list');
+  if (!el) return;
+  const stockMap = getDrugStock();
+  let list = Object.values(stockMap).sort((a, b) => a.name?.localeCompare(b.name));
+  if (q) list = list.filter(d => d.name?.toLowerCase().includes(q.toLowerCase()));
+  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">薬品が登録されていません</p>'; return; }
+  el.innerHTML = list.map(d => {
+    const isLow = d.threshold > 0 && d.stock <= d.threshold;
+    const isOut = d.stock <= 0;
+    const badge = isOut ? '<span class="list-item-badge badge-out">在庫切れ</span>' :
+                  isLow ? '<span class="list-item-badge badge-low">要発注</span>' :
+                          '<span class="list-item-badge badge-ok">在庫あり</span>';
+    return `<div class="list-item" onclick="openStockDetail('${d.id}')">
+      <div class="list-item-main">
+        <div class="list-item-name">${d.name}</div>
+        <div class="list-item-sub">${d.category || ''} ${d.wdMeat > 0 ? `｜食肉${d.wdMeat}日` : ''} ${d.wdMilk > 0 ? `搾乳${d.wdMilk}日` : ''}</div>
+      </div>
+      <div style="text-align:right;">
+        <div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}">${d.stock}</div>
+        <div class="stock-unit">${d.unit || ''}</div>
+        ${badge}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDrugList(q = '') {
+  const el = document.getElementById('drug-list');
+  if (!el) return;
+  let list = Object.entries(drugs).map(([id, d]) => ({ id, ...d }))
+    .sort((a, b) => a.name?.localeCompare(b.name));
+  if (q) list = list.filter(d => d.name?.toLowerCase().includes(q.toLowerCase()));
+  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">薬品が登録されていません<br>右上の「＋ 追加」から登録してください</p>'; return; }
+  el.innerHTML = list.map(d => `
+    <div class="list-item" onclick="editDrug('${d.id}')">
+      <div class="list-item-main">
+        <div class="list-item-name">${d.name}</div>
+        <div class="list-item-sub">${d.category || ''}${d.unit ? ' / ' + d.unit : ''}${d.wdMeat > 0 ? ' ｜ 食肉' + d.wdMeat + '日' : ''}${d.wdMilk > 0 ? ' 搾乳' + d.wdMilk + '日' : ''}</div>
+        ${d.usage ? `<div class="list-item-sub" style="margin-top:2px;">${d.usage}</div>` : ''}
+      </div>
+      <div style="color:var(--muted);font-size:18px;">›</div>
+    </div>`).join('');
+}
+
+function renderHistory() {
+  const el = document.getElementById('history-list');
+  if (!el) return;
+  const filterCow = document.getElementById('history-cow-filter')?.value || '';
+  const list = Object.entries(treatments).map(([id, t]) => ({ id, ...t }))
+    .filter(t => !filterCow || t.cowId === filterCow)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">記録がありません</p>'; return; }
+  el.innerHTML = list.slice(0, 100).map(t => {
+    const drugNames = (t.drugs || []).map(d => {
+      const drug = drugs[d.drugId];
+      return drug ? `${drug.name} ${d.qty}${drug.unit || ''}` : d.drugId;
+    }).join('、');
+    return `<div class="treat-card" onclick="openTreatDetail('${t.id}')">
+      <div class="treat-header">
+        <div class="treat-cow">${cowName(t.cowId)}</div>
+        <div class="treat-date">${fmtDate(t.date)}</div>
+      </div>
+      <div class="treat-drug">💊 ${drugNames}</div>
+      ${t.memo ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">${t.memo}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderCowFilter() {
+  const sel = document.getElementById('history-cow-filter');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">すべての牛</option>' +
+    cows.filter(c => c.status !== 'retired').map(c =>
+      `<option value="${c.id}" ${c.id === current ? 'selected' : ''}>${c.id} ${c.name || ''}</option>`
+    ).join('');
+}
+
+// ===== 処置登録 =====
+function initTreatModal() {
+  document.getElementById('treat-date').value = today();
+  document.getElementById('treat-cow-search').value = '';
+  document.getElementById('treat-cow-id').value = '';
+  document.getElementById('treat-cow-selected').textContent = '';
+  document.getElementById('treat-cow-info').innerHTML = '';
+  document.getElementById('treat-cow-info').style.display = 'none';
+  document.getElementById('treat-cow-suggestions').style.display = 'none';
+  document.getElementById('treat-memo').value = '';
+  document.getElementById('treat-complaint').value = '';
+  document.getElementById('treat-findings').value = '';
+  document.getElementById('treat-temp').value = '';
+  document.getElementById('treat-pulse').value = '';
+  document.getElementById('treat-resp').value = '';
+  document.getElementById('treat-disease-large').value = '';
+  document.getElementById('treat-disease-small-wrap').style.display = 'none';
+  document.getElementById('treat-outcome').value = '';
+  document.getElementById('treat-outcome-date').value = '';
+  document.getElementById('treat-outcome-date').style.display = 'none';
+  document.getElementById('treat-drug-rows').innerHTML = '';
+  initDiseaseSelect();
+  addTreatDrugRow();
+}
+
+function onTreatCowSearch(val) {
+  const sug = document.getElementById('treat-cow-suggestions');
+  if (!val) { sug.style.display = 'none'; return; }
+  const q = val.toLowerCase();
+  const all = getAllAnimals();
+  const matches = all.filter(c =>
+    c.status !== 'retired' && (
+      (c.id||'').toLowerCase().includes(q) ||
+      (c.name||'').toLowerCase().includes(q) ||
+      (c.nationalId||'').includes(q)
+    )
+  ).slice(0, 10);
+  if (!matches.length) { sug.style.display = 'none'; return; }
+  sug.innerHTML = matches.map(c =>
+    `<div onclick="selectTreatCow('${c.id}')" ontouchstart="this.style.background='var(--bg2)'" ontouchend="this.style.background='';selectTreatCow('${c.id}')"
+       style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);">
+      <strong>${c.id}</strong> ${c.name||''} ${c.isCalf?'🐄子':''}
+      <span style="color:var(--muted);font-size:11px;">${c.nationalId||''}</span>
+    </div>`).join('');
+  sug.style.display = 'block';
+}
+
+function selectTreatCow(cowId) {
+  const all = getAllAnimals();
+  const c = all.find(x => x.id === cowId);
+  document.getElementById('treat-cow-id').value = cowId;
+  document.getElementById('treat-cow-search').value = cowId + (c?.name ? ' ' + c.name : '');
+  document.getElementById('treat-cow-selected').textContent = '✓ 選択済み: ' + cowDisplayShort(cowId);
+  document.getElementById('treat-cow-suggestions').style.display = 'none';
+
+  // 親牛の場合：最終分娩日・最終授精日を自動表示
+  const infoEl = document.getElementById('treat-cow-info');
+  if (infoEl && c && !c.isCalf) {
+    const parentCow = cows.find(x => x.id === cowId);
+    const lastCalving = parentCow?.calvingDate || '';
+    const lastInsem = (parentCow?.events||[])
+      .filter(e => e.type === 'ai_done' || e.type === 'et_done')
+      .sort((a,b) => b.date.localeCompare(a.date))[0]?.date || '';
+    const age = calcAge(c.dob);
+    infoEl.innerHTML = [
+      age ? `月齢：${age}` : '',
+      lastCalving ? `最終分娩：${fmtDate(lastCalving)}` : '',
+      lastInsem ? `最終授精：${fmtDate(lastInsem)}` : '',
+    ].filter(Boolean).join('　｜　');
+    infoEl.style.display = infoEl.innerHTML ? '' : 'none';
+  } else if (infoEl) {
+    infoEl.innerHTML = '';
+    infoEl.style.display = 'none';
+  }
+  updateWdPreview();
+}
+
+function addTreatDrugRow() {
+  const drugOptions = Object.entries(drugs)
+    .sort((a, b) => a[1].name?.localeCompare(b[1].name))
+    .map(([id, d]) => `<option value="${id}">${d.name}（${d.unit || '—'}）</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'drug-row';
+  row.innerHTML = `
+    <select onchange="onDrugRowChange(this)" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
+      <option value="">薬品を選択...</option>${drugOptions}
+    </select>
+    <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
+      <input type="number" min="0.1" step="0.1" value="1" placeholder="量"
+        style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
+        oninput="updateWdPreview()">
+      <span class="drug-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+    </div>
+    <button onclick="this.parentElement.remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>`;
+  document.getElementById('treat-drug-rows').appendChild(row);
+}
+
+function onDrugRowChange(sel) {
+  const row = sel.closest('.drug-row');
+  const unitLabel = row.querySelector('.drug-unit-label');
+  if (sel.value && drugs[sel.value]) {
+    unitLabel.textContent = drugs[sel.value].unit || '';
+  } else {
+    unitLabel.textContent = '';
+  }
+  updateWdPreview();
+}
+
+function updateWdPreview() {
+  const rows = document.querySelectorAll('#treat-drug-rows .drug-row');
+  const dateVal = document.getElementById('treat-date').value;
+  if (!dateVal) return;
+  let maxMeat = 0, maxMilk = 0;
+  rows.forEach(row => {
+    const sel = row.querySelector('select');
+    if (!sel?.value) return;
+    const drug = drugs[sel.value];
+    if (!drug) return;
+    maxMeat = Math.max(maxMeat, drug.wdMeat || 0);
+    maxMilk = Math.max(maxMilk, drug.wdMilk || 0);
+  });
+  const prev = document.getElementById('treat-wd-preview');
+  if (maxMeat > 0 || maxMilk > 0) {
+    const meatEnd = maxMeat > 0 ? addDays(dateVal, maxMeat) : null;
+    const milkEnd = maxMilk > 0 ? addDays(dateVal, maxMilk) : null;
+    prev.innerHTML = `⚠️ 休薬期間${meatEnd ? ` 食肉: ${fmtDate(meatEnd)}まで` : ''}${milkEnd ? ` 搾乳: ${fmtDate(milkEnd)}まで` : ''}`;
+    prev.style.display = 'block';
+  } else {
+    prev.style.display = 'none';
+  }
+}
+
+function saveTreat() {
+  const cowId = document.getElementById('treat-cow-id').value;
+  const date = document.getElementById('treat-date').value;
+  const memo = document.getElementById('treat-memo').value;
+  if (!cowId) { alert('牛を選択してください'); return; }
+  if (!date) { alert('処置日を入力してください'); return; }
+
+  const rows = document.querySelectorAll('#treat-drug-rows .drug-row');
+  const drugList = [];
+  rows.forEach(row => {
+    const sel = row.querySelector('select');
+    const qty = parseFloat(row.querySelector('input')?.value) || 0;
+    if (sel?.value && qty > 0) drugList.push({ drugId: sel.value, qty });
+  });
+  if (!drugList.length) { alert('薬品を1つ以上選択してください'); return; }
+
+  // 休薬期間計算
+  let maxMeat = 0, maxMilk = 0;
+  drugList.forEach(d => {
+    const drug = drugs[d.drugId];
+    if (!drug) return;
+    maxMeat = Math.max(maxMeat, drug.wdMeat || 0);
+    maxMilk = Math.max(maxMilk, drug.wdMilk || 0);
+  });
+  const wdMeatEnd = maxMeat > 0 ? addDays(date, maxMeat) : null;
+  const wdMilkEnd = maxMilk > 0 ? addDays(date, maxMilk) : null;
+
+  const treatId = 'treat_' + Date.now();
+  const diseaseCode = document.getElementById('treat-disease-code')?.value || '';
+  const diseaseLarge = document.getElementById('treat-disease-large')?.value || '';
+  // よく使う病名選択時は data-large から大分類を取得
+  const selectedOption = document.getElementById('treat-disease-code')?.selectedOptions?.[0];
+  const actualLarge = selectedOption?.dataset?.large || (diseaseLarge !== '__frequent__' ? diseaseLarge : '');
+  const diseaseName = diseaseCode ?
+    (DISEASE_CATEGORIES[actualLarge]?.diseases.find(d => d.code === diseaseCode)?.name ||
+     FREQUENT_DISEASES.find(d => d.code === diseaseCode)?.name || '') : '';
+  const updates = {};
+  updates['treatments/' + treatId] = {
+    cowId, date, drugs: drugList, memo,
+    complaint: document.getElementById('treat-complaint')?.value || '',
+    findings: document.getElementById('treat-findings')?.value || '',
+    temp: document.getElementById('treat-temp')?.value || '',
+    pulse: document.getElementById('treat-pulse')?.value || '',
+    resp: document.getElementById('treat-resp')?.value || '',
+    diseaseCode, diseaseName, diseaseLarge: actualLarge,
+    outcome: document.getElementById('treat-outcome')?.value || '',
+    outcomeDate: document.getElementById('treat-outcome-date')?.value || '',
+    wdMeatEnd, wdMilkEnd
+  };
+
+  // 在庫減算
+  drugList.forEach(d => {
+    const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    updates['movements/' + movId] = { drugId: d.drugId, type: 'use', qty: -d.qty, date, cowId, treatId, memo };
+  });
+
+  saveVet(updates).then(() => {
+    closeModal('modal-treat');
+    showTab('home');
+  });
+}
+
+// ===== 在庫入庫 =====
+function initStockInModal() {
+  document.getElementById('stockin-date').value = today();
+  document.getElementById('stockin-qty').value = '1';
+  document.getElementById('stockin-memo').value = '';
+  const sel = document.getElementById('stockin-drug-id');
+  sel.innerHTML = '<option value="">薬品を選択...</option>' +
+    Object.entries(drugs).sort((a, b) => a[1].name?.localeCompare(b[1].name))
+      .map(([id, d]) => `<option value="${id}">${d.name}</option>`).join('');
+}
+
+function saveStockIn() {
+  const drugId = document.getElementById('stockin-drug-id').value;
+  const qty = parseFloat(document.getElementById('stockin-qty').value) || 0;
+  const date = document.getElementById('stockin-date').value;
+  const memo = document.getElementById('stockin-memo').value;
+  if (!drugId) { alert('薬品を選択してください'); return; }
+  if (qty <= 0) { alert('数量を入力してください'); return; }
+  const movId = 'mov_' + Date.now();
+  saveVet({ ['movements/' + movId]: { drugId, type: 'in', qty, date, memo } }).then(() => {
+    closeModal('modal-stock-in');
+  });
+}
+
+// ===== 薬品マスタ =====
+function clearDrugForm() {
+  document.getElementById('drug-edit-id').value = '';
+  document.getElementById('drug-edit-title').textContent = '薬品を追加';
+  document.getElementById('drug-name').value = '';
+  document.getElementById('drug-category').value = 'ホルモン剤';
+  document.getElementById('drug-wd-meat').value = '0';
+  document.getElementById('drug-wd-milk').value = '0';
+  document.getElementById('drug-unit').value = '';
+  document.getElementById('drug-threshold').value = '0';
+  document.getElementById('drug-usage').value = '';
+  document.getElementById('drug-delete-btn').style.display = 'none';
+}
+
+function editDrug(drugId) {
+  const d = drugs[drugId];
+  if (!d) return;
+  document.getElementById('drug-edit-id').value = drugId;
+  document.getElementById('drug-edit-title').textContent = '薬品を編集';
+  document.getElementById('drug-name').value = d.name || '';
+  document.getElementById('drug-category').value = d.category || 'その他';
+  document.getElementById('drug-wd-meat').value = d.wdMeat || 0;
+  document.getElementById('drug-wd-milk').value = d.wdMilk || 0;
+  document.getElementById('drug-unit').value = d.unit || '';
+  document.getElementById('drug-threshold').value = d.threshold || 0;
+  document.getElementById('drug-usage').value = d.usage || '';
+  document.getElementById('drug-delete-btn').style.display = 'inline-block';
+  openModal('modal-drug-edit');
+}
+
+function saveDrug() {
+  const name = document.getElementById('drug-name').value.trim();
+  if (!name) { alert('薬品名を入力してください'); return; }
+  const existingId = document.getElementById('drug-edit-id').value;
+  const drugId = existingId || 'drug_' + Date.now();
+  const data = {
+    name,
+    category: document.getElementById('drug-category').value,
+    wdMeat: parseInt(document.getElementById('drug-wd-meat').value) || 0,
+    wdMilk: parseInt(document.getElementById('drug-wd-milk').value) || 0,
+    unit: document.getElementById('drug-unit').value.trim(),
+    threshold: parseInt(document.getElementById('drug-threshold').value) || 0,
+    usage: document.getElementById('drug-usage').value.trim(),
+  };
+  saveVet({ ['drugs/' + drugId]: data }).then(() => closeModal('modal-drug-edit'));
+}
+
+function deleteDrug() {
+  const drugId = document.getElementById('drug-edit-id').value;
+  if (!drugId) return;
+  if (!confirm('この薬品を削除しますか？')) return;
+  saveVet({ ['drugs/' + drugId]: null }).then(() => closeModal('modal-drug-edit'));
+}
+
+// ===== 在庫詳細 =====
+function openStockDetail(drugId) {
+  const d = { ...drugs[drugId], id: drugId };
+  const stock = calcStock(drugId);
+  const unit = d.unit || '';
+  const movList = Object.entries(movements)
+    .filter(([, m]) => m.drugId === drugId)
+    .map(([id, m]) => ({ id, ...m }))
+    .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 20);
+  document.getElementById('stock-detail-name').textContent = d.name;
+  document.getElementById('stock-detail-content').innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;">
+      <div class="stock-num ${stock <= 0 ? 'text-danger' : stock <= d.threshold ? 'text-warn' : 'text-accent'}">${stock}</div>
+      <div class="stock-unit">${unit}</div>
+      ${d.threshold > 0 ? `<div style="font-size:11px;color:var(--muted);">発注閾値: ${d.threshold}${unit}</div>` : ''}
+    </div>
+    <div style="font-size:12px;margin-bottom:8px;color:var(--muted);">入出庫履歴（最新20件）</div>
+    ${movList.length ? movList.map(m => `
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+        <div>
+          <span style="color:${m.qty > 0 ? 'var(--accent)' : 'var(--danger)'};">${m.qty > 0 ? '＋' : ''}${m.qty}${unit}</span>
+          <span style="color:var(--muted);margin-left:8px;">${m.type === 'in' ? '入庫' : m.type === 'use' ? '使用' : m.type === 'dispose' ? '廃棄' : '調整'}</span>
+          ${m.cowId ? `<span style="color:var(--info);margin-left:4px;">${cowName(m.cowId)}</span>` : ''}
+        </div>
+        <div style="color:var(--muted);">${fmtDate(m.date)}</div>
+      </div>`).join('') : '<p class="text-muted" style="text-align:center;padding:12px;">履歴なし</p>'}
+    <div style="margin-top:12px;display:flex;gap:8px;">
+      <button class="btn btn-primary btn-sm" onclick="closeModal('modal-stock-detail');openModal('modal-stock-in');" style="flex:1;">＋ 入庫</button>
+      <button class="btn btn-secondary btn-sm" onclick="editDrug('${drugId}')" style="flex:1;">薬品設定</button>
+    </div>`;
+  openModal('modal-stock-detail');
+}
+
+// ===== 処置詳細 =====
+function openTreatDetail(treatId) {
+  const t = treatments[treatId];
+  if (!t) return;
+  const { meatEnd, milkEnd } = calcWithdrawal(t.cowId);
+  const meatActive = meatEnd && meatEnd >= today();
+  const milkActive = milkEnd && milkEnd >= today();
+  const drugRows = (t.drugs || []).map(d => {
+    const drug = drugs[d.drugId];
+    return drug ? `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13px;">
+      💊 ${drug.name} — ${d.qty}${drug.unit || ''}
+    </div>` : '';
+  }).join('');
+  document.getElementById('treat-detail-content').innerHTML = `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:16px;font-weight:700;">${cowDisplayShort(t.cowId)}</div>
+      <div style="font-size:13px;color:var(--muted);">${fmtDate(t.date)}${t.diseaseName ? '　' + t.diseaseName : ''}</div>
+    </div>
+    <div style="margin-bottom:12px;">${drugRows}</div>
+    ${t.memo ? `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">📝 ${t.memo}</div>` : ''}
+    ${meatEnd ? `<div style="font-size:13px;margin-bottom:4px;">🥩 食肉休薬: <span class="${meatActive ? 'text-danger' : 'text-accent'}">${fmtDate(meatEnd)}まで ${meatActive ? '（休薬中）' : '（終了）'}</span></div>` : ''}
+    ${milkEnd ? `<div style="font-size:13px;margin-bottom:4px;">🥛 搾乳休薬: <span class="${milkActive ? 'text-danger' : 'text-accent'}">${fmtDate(milkEnd)}まで ${milkActive ? '（休薬中）' : '（終了）'}</span></div>` : ''}
+    <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">転帰</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <select id="detail-outcome-${treatId}" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;-webkit-appearance:none;" onchange="onDetailOutcomeChange('${treatId}')">
+          <option value="" ${!t.outcome?'selected':''}>継続中</option>
+          <option value="10" ${t.outcome==='10'?'selected':''}>10：治癒</option>
+          <option value="20" ${t.outcome==='20'?'selected':''}>20：軽快</option>
+          <option value="30" ${t.outcome==='30'?'selected':''}>30：死亡</option>
+          <option value="40" ${t.outcome==='40'?'selected':''}>40：とさつ</option>
+          <option value="50" ${t.outcome==='50'?'selected':''}>50：転出</option>
+          <option value="60" ${t.outcome==='60'?'selected':''}>60：その他</option>
+        </select>
+        <input type="date" id="detail-outcome-date-${treatId}" value="${t.outcomeDate||''}"
+          style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;${t.outcome?'':'display:none;'}">
+      </div>
+      ${t.outcomeAuto ? '<div style="font-size:10px;color:var(--muted);margin-top:4px;">※ 自動転帰（最終診療から30日経過）</div>' : ''}
+      <button onclick="saveOutcome('${treatId}')" class="btn btn-secondary btn-sm mt8" style="width:100%;">転帰を保存</button>
+    </div>
+    <div style="margin-top:12px;border-top:1px solid var(--danger);padding-top:10px;">
+      <button onclick="deleteTreat('${treatId}')" class="btn btn-danger" style="width:100%;">🗑 この処置を削除（連動在庫も削除）</button>
+    </div>`;
+  document.getElementById('treat-delete-btn').onclick = () => deleteTreat(treatId);
+  openModal('modal-treat-detail');
+}
+
+function deleteTreat(treatId) {
+  const t = treatments[treatId];
+  if (!t) return;
+  if (!confirm('この処置記録を削除しますか？\n（連動した在庫記録も削除されます）')) return;
+  const updates = { ['treatments/' + treatId]: null };
+  Object.entries(movements).forEach(([movId, m]) => {
+    if (m.treatId === treatId) updates['movements/' + movId] = null;
+  });
+  saveVet(updates).then(() => closeModal('modal-treat-detail'));
+}
+
+// ===== 病名選択 =====
+const FREQUENT_DISEASES = [
+  {code:'031404', name:'肺炎　細菌性',           large:'03'},
+  {code:'045501', name:'腸炎　感染性',            large:'04'},
+  {code:'062400', name:'鈍性発情',                large:'06'},
+  {code:'081900', name:'胎盤停滞',                large:'08'},
+  {code:'080606', name:'難産　陣痛異常',          large:'08'},
+  {code:'045300', name:'腸捻転',                  large:'04'},
+  {code:'121300', name:'白筋症',                  large:'12'},
+  {code:'070503', name:'急性乳房炎　大腸菌',      large:'07'},
+  {code:'051802', name:'尿石症　膀胱結石',        large:'05'},
+  {code:'131900', name:'捻挫',                    large:'13'},
+  {code:'140601', name:'皮膚炎　感染症',          large:'14'},
+];
+
+function initDiseaseSelect() {
+  const sel = document.getElementById('treat-disease-large');
+  if (!sel) return;
+  const sorted = Object.entries(DISEASE_CATEGORIES).sort((a,b) => a[0].localeCompare(b[0]));
+  sel.innerHTML = '<option value="">選択...</option>' +
+    '<option value="__frequent__">★ よく使う病名</option>' +
+    '<option disabled>──────────────</option>' +
+    sorted.map(([code, cat]) =>
+      `<option value="${code}">${code}：${cat.name}</option>`
+    ).join('');
+}
+
+function onDiseaseLargeChange() {
+  const large = document.getElementById('treat-disease-large').value;
+  const wrap = document.getElementById('treat-disease-small-wrap');
+  const smallSel = document.getElementById('treat-disease-code');
+  if (!large) { wrap.style.display = 'none'; return; }
+  if (large === '__frequent__') {
+    smallSel.innerHTML = '<option value="">選択...</option>' +
+      FREQUENT_DISEASES.map(d => `<option value="${d.code}" data-large="${d.large}">${d.code}：${d.name}</option>`).join('');
+    wrap.style.display = '';
+    return;
+  }
+  const cat = DISEASE_CATEGORIES[large];
+  if (!cat) { wrap.style.display = 'none'; return; }
+  const sorted = [...cat.diseases].sort((a,b) => a.code.localeCompare(b.code));
+  smallSel.innerHTML = '<option value="">選択...</option>' +
+    sorted.map(d => `<option value="${d.code}">${d.code}：${d.name}</option>`).join('');
+  wrap.style.display = '';
+}
+
+// 牛ごとの実際の休薬期間終了日を計算（全処置記録から最新使用日を基準に）
+function calcWithdrawal(cowId) {
+  let maxMeatEnd = null, maxMilkEnd = null;
+  Object.values(treatments).forEach(t => {
+    if (t.cowId !== cowId) return;
+    (t.drugs || []).forEach(d => {
+      const drug = drugs[d.drugId];
+      if (!drug || !t.date) return;
+      if (drug.wdMeat > 0) {
+        const end = addDays(t.date, drug.wdMeat);
+        if (!maxMeatEnd || end > maxMeatEnd) maxMeatEnd = end;
+      }
+      if (drug.wdMilk > 0) {
+        const end = addDays(t.date, drug.wdMilk);
+        if (!maxMilkEnd || end > maxMilkEnd) maxMilkEnd = end;
+      }
+    });
+  });
+  return { meatEnd: maxMeatEnd, milkEnd: maxMilkEnd };
+}
+function onOutcomeChange() {
+  const val = document.getElementById('treat-outcome').value;
+  const dateEl = document.getElementById('treat-outcome-date');
+  if (val) {
+    dateEl.style.display = '';
+    if (!dateEl.value) dateEl.value = today();
+  } else {
+    dateEl.style.display = 'none';
+    dateEl.value = '';
+  }
+}
+
+// 自動転帰チェック（最終診療日から30日経過で治癒に自動設定）
+function checkAutoOutcome() {
+  const todayStr = today();
+  const updates = {};
+  Object.entries(treatments).forEach(([id, t]) => {
+    if (t.outcome) return; // 転帰済みはスキップ
+    const autoDate = addDays(t.date, 30);
+    if (autoDate <= todayStr) {
+      updates['treatments/' + id + '/outcome'] = '10';
+      updates['treatments/' + id + '/outcomeDate'] = autoDate;
+      updates['treatments/' + id + '/outcomeAuto'] = true;
+    }
+  });
+  if (Object.keys(updates).length > 0) {
+    saveVet(updates);
+  }
+}
+
+function onDetailOutcomeChange(treatId) {
+  const val = document.getElementById('detail-outcome-'+treatId)?.value;
+  const dateEl = document.getElementById('detail-outcome-date-'+treatId);
+  if (val) {
+    dateEl.style.display = '';
+    if (!dateEl.value) dateEl.value = today();
+  } else {
+    dateEl.style.display = 'none';
+  }
+}
+
+function saveOutcome(treatId) {
+  const outcome = document.getElementById('detail-outcome-'+treatId)?.value || '';
+  const outcomeDate = document.getElementById('detail-outcome-date-'+treatId)?.value || '';
+  saveVet({
+    ['treatments/'+treatId+'/outcome']: outcome,
+    ['treatments/'+treatId+'/outcomeDate']: outcomeDate,
+    ['treatments/'+treatId+'/outcomeAuto']: false,
+  }).then(() => {
+    closeModal('modal-treat-detail');
+  });
+}
+
+// ===== 診療年報 =====
+function openNenpo() {
+  const sel = document.getElementById('nenpo-year');
+  const years = new Set();
+  const thisYear = new Date().getFullYear();
+  years.add(thisYear);
+  years.add(thisYear - 1);
+  Object.values(treatments).forEach(t => {
+    if (t.date) years.add(parseInt(t.date.slice(0,4)));
+  });
+  sel.innerHTML = [...years].sort((a,b)=>b-a).map(y =>
+    `<option value="${y}">${y}年</option>`
+  ).join('');
+  openModal('modal-nenpo');
+}
+
+function printNenpo() {
+  const year = parseInt(document.getElementById('nenpo-year').value);
+
+  // 全角変換
+  const toFW = s => String(s).split('').map(c => {
+    const n = c.charCodeAt(0);
+    return (n >= 48 && n <= 57) ? String.fromCharCode(n - 48 + 0xFF10) : c;
+  }).join('');
+
+  // 症例グループ化：同一牛・同一病名コードの連続した治療期間を1症例
+  const treatsByCowDisease = {};
+  Object.values(treatments).forEach(t => {
+    if (!t.diseaseCode || !t.date) return;
+    const key = `${t.cowId}__${t.diseaseCode}`;
+    if (!treatsByCowDisease[key]) treatsByCowDisease[key] = [];
+    treatsByCowDisease[key].push(t);
+  });
+
+  const cases = {};
+  Object.entries(treatsByCowDisease).forEach(([key, treats]) => {
+    treats.sort((a, b) => a.date.localeCompare(b.date));
+    let caseNum = 0;
+    let caseKey = null;
+    treats.forEach(t => {
+      const prevTreat = treats[treats.indexOf(t) - 1];
+      const isNewCase = !prevTreat ||
+        addDays(prevTreat.date, 30) < t.date ||
+        (prevTreat.outcome && prevTreat.outcome !== '');
+      if (isNewCase) {
+        caseNum++;
+        caseKey = `${key}__${caseNum}`;
+        cases[caseKey] = {
+          cowId: t.cowId, diseaseCode: t.diseaseCode,
+          diseaseName: t.diseaseName || '',
+          diseaseLarge: t.diseaseLarge || t.diseaseCode.slice(0,2),
+          months: {}, isDead: false,
+        };
+      }
+      if (!caseKey) return;
+      if (parseInt(t.date.slice(0,4)) === year) {
+        cases[caseKey].months[parseInt(t.date.slice(5,7))] = true;
+      }
+      if (t.outcome === '30' || t.outcome === '40') cases[caseKey].isDead = true;
+    });
+  });
+
+  // 病名別集計
+  const diseaseStats = {};
+  Object.values(cases).forEach(c => {
+    const months = Object.keys(c.months).map(Number);
+    if (!months.length) return;
+    if (!diseaseStats[c.diseaseCode]) {
+      diseaseStats[c.diseaseCode] = {
+        name: c.diseaseName, large: c.diseaseLarge,
+        treat: Array(12).fill(0), dead: Array(12).fill(0),
+        treatTotal: 0, deadTotal: 0,
+      };
+    }
+    months.forEach(m => { diseaseStats[c.diseaseCode].treat[m-1]++; });
+    diseaseStats[c.diseaseCode].treatTotal++;
+    if (c.isDead) {
+      const maxMonth = Math.max(...months);
+      diseaseStats[c.diseaseCode].dead[maxMonth-1]++;
+      diseaseStats[c.diseaseCode].deadTotal++;
+    }
+  });
+
+  const sorted = Object.entries(diseaseStats).sort((a,b) => a[0].localeCompare(b[0]));
+
+  // 月合計行
+  const monthTreatTotals = Array(12).fill(0);
+  const monthDeadTotals = Array(12).fill(0);
+  sorted.forEach(([,s]) => {
+    s.treat.forEach((v,i) => { monthTreatTotals[i] += v; });
+    s.dead.forEach((v,i) => { monthDeadTotals[i] += v; });
+  });
+
+  const B = 'border:1px solid #000;';
+  const td = (val, extra='') => `<td style="${B}text-align:center;padding:1px 2px;font-size:9px;${extra}">${val}</td>`;
+  const tdL = (val, extra='') => `<td style="${B}padding:1px 4px;font-size:9px;${extra}">${val}</td>`;
+
+  const rows = sorted.map(([code, s]) => {
+    const largeCode = code.slice(0,2).padStart(2,'0');
+    const medCode = code.slice(2,4);
+    const smallCode = code.slice(4,6);
+    // 診療頭数行
+    const treatRow = `<tr>
+      ${tdL(toFW(largeCode))}
+      ${tdL(toFW(medCode))}
+      ${tdL(toFW(smallCode))}
+      ${s.treat.map(v => td(v>0?v:'')).join('')}
+      ${td(s.treatTotal||'','font-weight:700;')}
+      ${td('')}
+      ${td('')}
+    </tr>`;
+    // 死亡頭数行
+    const deadRow = `<tr>
+      ${tdL('')}${tdL('')}${tdL('')}
+      ${s.dead.map(v => td(v>0?`（${v}）`:'')).join('')}
+      ${td('')}
+      ${td(s.deadTotal||'')}
+      ${td('')}
+    </tr>`;
+    return treatRow + deadRow;
+  }).join('');
+
+  const totalRow = `
+  <tr style="background:#f0f0f0;">
+    ${tdL('合　計','font-weight:700;')}${tdL('')}${tdL('')}
+    ${monthTreatTotals.map(v=>td(v||'','font-weight:700;')).join('')}
+    ${td(monthTreatTotals.reduce((a,b)=>a+b,0)||'','font-weight:700;')}
+    ${td('')}${td('')}
+  </tr>
+  <tr style="background:#f0f0f0;">
+    ${tdL('')}${tdL('')}${tdL('')}
+    ${monthDeadTotals.map(v=>td(v>0?`（${v})`:'')).join('')}
+    ${td('')}
+    ${td(monthDeadTotals.reduce((a,b)=>a+b,0)||'')}
+    ${td('')}
+  </tr>`;
+
+  const nenpoHtml = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>診療年報 ${year}年</title>
+  <style>
+    @media print{body{margin:0;}@page{size:A3 landscape;margin:8mm;}
+    .no-print{display:none;}}
+    body{font-family:'MS Mincho','游明朝',serif;background:#fff;color:#000;margin:8mm;}
+    table{border-collapse:collapse;width:100%;}
+  </style></head><body>
+  <div style="text-align:right;font-size:9pt;">（様式ー産業動物用）</div>
+  <div style="text-align:center;font-size:16pt;font-weight:700;letter-spacing:2em;margin-bottom:6px;">診療年報</div>
+  <div style="text-align:right;font-size:10pt;margin-bottom:8px;">　　　${year}年　　月　　日</div>
+  <div style="font-size:10pt;margin-bottom:2px;">　北海道知事　　様</div>
+  <table style="width:auto;margin-bottom:8px;font-size:10pt;">
+    <tr><td style="width:60px;">住所</td><td style="border-bottom:1px solid #000;min-width:200px;">中川郡池田町字千代田697番地</td></tr>
+    <tr><td>氏名</td><td style="border-bottom:1px solid #000;">小原　千佳</td></tr>
+  </table>
+  <div style="font-size:10pt;margin-bottom:8px;">　　${year}年に診療した飼育動物について、獣医療法施行細則第４条の規定により、次のとおり報告します。</div>
+  <div style="font-size:10pt;margin-bottom:8px;">　（畜種：肉用牛）</div>
+  <table>
+    <thead>
+      <tr style="background:#d0d0d0;">
+        <th style="${B}padding:2px 4px;width:28px;font-size:9px;">病類</th>
+        <th style="${B}padding:2px 4px;width:28px;font-size:9px;" colspan="2">病名</th>
+        ${['１月','２月','３月','４月','５月','６月','７月','８月','９月','１０月','１１月','１２月'].map(m=>`<th style="${B}padding:2px;width:26px;font-size:9px;">${m}</th>`).join('')}
+        <th style="${B}padding:2px;width:28px;font-size:9px;">計</th>
+        <th style="${B}padding:2px;width:44px;font-size:9px;">左記中死亡したもの</th>
+        <th style="${B}padding:2px;width:40px;font-size:9px;">備考</th>
+      </tr>
+      <tr style="background:#d0d0d0;">
+        <th style="${B}padding:1px 3px;font-size:8px;"></th>
+        <th style="${B}padding:1px 3px;font-size:8px;">分類</th>
+        <th style="${B}padding:1px 3px;font-size:8px;">小分類</th>
+        ${Array(12).fill('').map(()=>`<th style="${B}font-size:8px;"><div style="font-size:7px;color:#555;">診療頭数</div><div style="font-size:7px;color:#555;">（死亡数）</div></th>`).join('')}
+        <th style="${B}"></th><th style="${B}"></th><th style="${B}"></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows || `<tr><td colspan="18" style="text-align:center;padding:20px;${B}">診療記録なし<br>（病名コードが記録された処置がありません）</td></tr>`}
+      ${totalRow}
+    </tbody>
+  </table>
+  <div style="font-size:8pt;margin-top:6px;">
+    注１　病類欄は、次のように区分して記入すること。循環器病（01）、血液及び造血器病（02）、呼吸器病（03）、消化器病（04）、泌尿器病（05）、生殖器病（06）、泌乳器病（07）、妊娠分娩及び産後の疾患（08）、新生子異常（09）、神経系病（10）、感覚器病（11）、分泌及び代謝疾患（12）、運動器病（13）、皮膚病（14）、中毒（15）、ウイルス病（16）、細菌及び真菌病（17）、原虫及び寄生虫病（18）、外傷不慮その他（19）<br>
+    注２　各病類ごとに小計を記入し、最後に総計を記入すること。<br>
+    注３　病名欄は、知事が別に定める区分により記入すること。
+  </div>
+  <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(nenpoHtml);
+  w.document.close();
+  closeModal('modal-nenpo');
+}
+
+
+function onKarteCowSearch(val) {
+  const sug = document.getElementById('karte-cow-suggestions');
+  if (!val) { sug.style.display = 'none'; return; }
+  const q = val.toLowerCase();
+  const matches = cows.filter(c =>
+    c.status !== 'retired' && (
+      c.id.toLowerCase().includes(q) || (c.name||'').toLowerCase().includes(q)
+    )
+  ).slice(0, 8);
+  if (!matches.length) { sug.style.display = 'none'; return; }
+  sug.innerHTML = matches.map(c =>
+    `<div onclick="selectKarteCow('${c.id}')" ontouchstart="this.style.background='var(--bg2)'" ontouchend="this.style.background='';selectKarteCow('${c.id}')"
+       style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);">
+      <strong>${c.id}</strong> ${c.name||''} <span style="color:var(--muted);font-size:11px;">${c.nationalId||''}</span>
+    </div>`
+  ).join('');
+  sug.style.display = 'block';
+}
+
+function selectKarteCow(cowId) {
+  document.getElementById('karte-cow-id').value = cowId;
+  document.getElementById('karte-cow-search').value = cowName(cowId);
+  document.getElementById('karte-cow-selected').textContent = '✓ ' + cowName(cowId);
+  document.getElementById('karte-cow-suggestions').style.display = 'none';
+}
+
+// ===== カルテ印刷 =====
+function printKarte() {
+  const cowId = document.getElementById('karte-cow-id').value;
+  if (!cowId) { alert('牛を選択してください'); return; }
+  const all = getAllAnimals();
+  const cow = all.find(c => c.id === cowId);
+  // 名号＝個体識別番号の下4桁
+  const meigo = cow?.nationalId ? cow.nationalId.slice(-4) : cowId;
+  const age = cow?.dob ? calcAge(cow.dob) : '';
+  // 最終分娩日・最終授精日（親牛のみ）
+  const parentCow = cows.find(c => c.id === cowId);
+  const lastCalving = parentCow?.calvingDate || '';
+  const lastInsem = (parentCow?.events||[])
+    .filter(e => e.type === 'ai_done' || e.type === 'et_done')
+    .sort((a,b) => b.date.localeCompare(a.date))[0]?.date || '';
+  const treatList = Object.values(treatments)
+    .filter(t => t.cowId === cowId)
+    .sort((a, b) => (a.date||'').localeCompare(b.date||''));
+  if (!treatList.length) { alert('この牛の診療記録がありません'); return; }
+
+  // 病名リスト（最初の病名を使用）
+  const firstDiseaseName = treatList[0]?.diseaseName || '';
+  const firstDiseaseCode = treatList[0]?.diseaseCode || '';
+
+  const fmtDt = s => s ? s.replace(/-/g,'/') : '　　　　';
+  const W = (s,n) => (s||'').padEnd(n,'　').slice(0,n);
+
+  // 診療シート生成
+  const sheets = treatList.map((t, idx) => {
+    const drugRows = (t.drugs||[]).map(d => {
+      const drug = drugs[d.drugId];
+      if (!drug) return '';
+      const wd = drug.wdMeat > 0 ? String(drug.wdMeat) : '';
+      return `<tr>
+        <td style="border:1px solid #000;padding:2px 4px;font-size:10px;white-space:nowrap;">${drug.name||''}</td>
+        <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:center;">${drug.route||''}</td>
+        <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:center;">${drug.unit||''}</td>
+        <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:right;">${d.qty||''}</td>
+        <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:center;">${wd}</td>
+      </tr>`;
+    }).join('');
+
+    const vitals = t.temp||t.pulse||t.resp ?
+      `T:${t.temp||'　'}　P:${t.pulse||'　'}　R:${t.resp||'　'}` : '';
+
+    return `
+    <div style="font-family:'MS Mincho','游明朝',serif;font-size:10pt;padding:8mm;box-sizing:border-box;background:#fff;page-break-after:always;">
+      <!-- 診療日・バイタル -->
+      <table style="width:100%;border-collapse:collapse;margin-bottom:4px;">
+        <tr>
+          <td style="width:140px;font-size:10px;">診療年月日</td>
+          <td style="font-weight:700;font-size:11px;">${fmtDt(t.date)}</td>
+          <td style="width:80px;font-size:10px;text-align:right;">診目 ${idx+1}</td>
+        </tr>
+      </table>
+      <!-- 現症・経過 -->
+      <table style="width:100%;border:1px solid #000;border-collapse:collapse;margin-bottom:4px;">
+        <tr>
+          <td style="width:80px;border:1px solid #000;padding:3px 6px;font-size:10px;vertical-align:top;">現症・経過</td>
+          <td style="border:1px solid #000;padding:3px 6px;font-size:10px;min-height:40px;">
+            ${vitals ? `<span style="font-size:10px;">${vitals}</span><br>` : ''}
+            ${t.complaint ? `稟告: ${t.complaint}<br>` : ''}
+            ${t.findings||''}
+          </td>
+          <td style="width:100px;border:1px solid #000;padding:3px 6px;font-size:9px;vertical-align:top;">
+            出荷制限期間<br>
+            牛乳&nbsp;&nbsp;&nbsp;&nbsp;肉
+          </td>
+        </tr>
+      </table>
+      <!-- 薬品テーブル -->
+      <table style="width:100%;border-collapse:collapse;font-size:10px;">
+        <thead>
+          <tr style="background:#f0f0f0;">
+            <th style="border:1px solid #000;padding:2px 4px;text-align:left;">薬品名</th>
+            <th style="border:1px solid #000;padding:2px 4px;width:40px;">経路</th>
+            <th style="border:1px solid #000;padding:2px 4px;width:40px;">単位</th>
+            <th style="border:1px solid #000;padding:2px 4px;width:40px;">数量</th>
+            <th style="border:1px solid #000;padding:2px 4px;width:40px;">休薬日</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${drugRows || '<tr><td colspan="5" style="border:1px solid #000;padding:4px;text-align:center;color:#999;">薬品なし</td></tr>'}
+        </tbody>
+      </table>
+      ${t.memo ? `<div style="font-size:10px;margin-top:4px;color:#333;">備考: ${t.memo}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // カルテ表紙（1枚目）
+  const coverPage = `
+  <div style="font-family:'MS Mincho','游明朝',serif;font-size:10pt;padding:8mm;box-sizing:border-box;background:#fff;page-break-after:always;">
+    <div style="text-align:center;font-size:16pt;font-weight:700;border-bottom:2px solid #000;padding-bottom:4px;margin-bottom:8px;">家　畜　診　療　簿</div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:8px;">
+      <tr>
+        <td style="width:60px;font-size:10px;">住所</td>
+        <td style="font-size:10px;border-bottom:1px solid #000;">池田町字千代田697</td>
+        <td style="width:60px;font-size:10px;padding-left:16px;">畜主名</td>
+        <td style="font-size:10px;border-bottom:1px solid #000;">小原　秀樹</td>
+        <td style="width:80px;font-size:10px;padding-left:16px;">農家番号</td>
+        <td style="font-size:10px;border-bottom:1px solid #000;">69059616</td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
+      <tr>
+        <td style="width:60px;font-size:10px;">名号</td>
+        <td style="font-size:12px;font-weight:700;border-bottom:1px solid #000;width:120px;">${meigo}</td>
+        <td style="width:80px;font-size:10px;padding-left:16px;">個体識別番号</td>
+        <td style="font-size:10px;border-bottom:1px solid #000;">${cow?.nationalId||'　　　　　　　　　'}</td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:10px;">
+      <tr>
+        <td style="width:80px;">家畜種類</td><td style="border-bottom:1px solid #000;width:80px;">肉牛</td>
+        <td style="width:40px;">性別</td><td style="border-bottom:1px solid #000;width:40px;">${cow?.sex==='bull'||cow?.sex==='male'?'雄':'雌'}</td>
+        <td style="width:40px;">品種</td><td style="border-bottom:1px solid #000;width:80px;">${cow?.breed||''}</td>
+        <td style="width:60px;">生年月日</td><td style="border-bottom:1px solid #000;width:80px;">${cow?.dob ? fmtDt(cow.dob) : ''}</td>
+        <td style="width:60px;">月齢(日齢)</td><td style="border-bottom:1px solid #000;">${age}</td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:6px;font-size:10px;">
+      <tr>
+        <td style="width:80px;">最終分娩月日</td><td style="border-bottom:1px solid #000;width:100px;">${lastCalving ? fmtDt(lastCalving) : ''}</td>
+        <td style="width:80px;padding-left:8px;">最終授精月日</td><td style="border-bottom:1px solid #000;">${lastInsem ? fmtDt(lastInsem) : ''}</td>
+      </tr>
+    </table>
+    <!-- 病名 -->
+    <table style="width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:6px;">
+      <tr>
+        <td style="width:30px;border:1px solid #000;padding:3px 6px;font-size:10px;text-align:center;">1)</td>
+        <td style="border:1px solid #000;padding:3px 6px;font-size:10px;">病名</td>
+        <td style="border:1px solid #000;padding:3px 6px;font-size:11px;font-weight:700;">${firstDiseaseName}</td>
+        <td style="border:1px solid #000;padding:3px 6px;font-size:10px;width:80px;">${firstDiseaseCode}</td>
+      </tr>
+    </table>
+    <!-- 診療日程 -->
+    <table style="width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:6px;font-size:10px;">
+      <tr>
+        <td style="border:1px solid #000;padding:3px 6px;width:100px;">発病年月日</td>
+        <td style="border:1px solid #000;padding:3px 6px;">${treatList[0]?.date ? fmtDt(treatList[0].date) : ''}</td>
+        <td style="border:1px solid #000;padding:3px 6px;width:100px;">初診年月日</td>
+        <td style="border:1px solid #000;padding:3px 6px;">${treatList[0]?.date ? fmtDt(treatList[0].date) : ''}</td>
+        <td style="border:1px solid #000;padding:3px 6px;width:80px;">終診年月日</td>
+        <td style="border:1px solid #000;padding:3px 6px;">${treatList[treatList.length-1]?.date ? fmtDt(treatList[treatList.length-1].date) : ''}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #000;padding:3px 6px;">転帰年月日</td>
+        <td style="border:1px solid #000;padding:3px 6px;">${treatList[treatList.length-1]?.outcomeDate ? fmtDt(treatList[treatList.length-1].outcomeDate) : ''}</td>
+        <td style="border:1px solid #000;padding:3px 6px;">転帰</td>
+        <td style="border:1px solid #000;padding:3px 6px;">${
+          ({'10':'治癒','20':'軽快','30':'死亡','40':'とさつ','50':'転出','60':'その他'})[treatList[treatList.length-1]?.outcome] || '継続中'
+        }</td>
+        <td style="border:1px solid #000;padding:3px 6px;">診療回数</td>
+        <td style="border:1px solid #000;padding:3px 6px;">${treatList.length} 回診</td>
+      </tr>
+    </table>
+    <!-- 稟告 -->
+    <table style="width:100%;border-collapse:collapse;border:1px solid #000;margin-bottom:6px;">
+      <tr>
+        <td style="width:60px;border:1px solid #000;padding:3px 6px;font-size:10px;">稟告</td>
+        <td style="border:1px solid #000;padding:3px 6px;font-size:10px;">${treatList[0]?.complaint||''}</td>
+      </tr>
+    </table>
+    <!-- 獣医師情報 -->
+    <div style="font-size:10px;margin-top:8px;">
+      <div>獣医師：小原家畜診療所　小原　千佳</div>
+      <div>登録番号：第 60937 号　免許番号：01L237</div>
+      <div>住所：中川郡池田町字千代田697番地</div>
+    </div>
+  </div>`;
+
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+    <title>家畜診療簿 - ${cowId}</title>
+    <style>
+      @media print { body{margin:0;} @page{size:A4;margin:10mm;} }
+      body{background:#fff;color:#000;}
+    </style>
+  </head><body>
+    ${coverPage}
+    ${sheets}
+    <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  closeModal('modal-karte');
+}
+
+
+document.getElementById('treat-date') && (document.getElementById('treat-date').value = today());
+initDiseaseSelect();
+</script>
+</body>
+</html>
