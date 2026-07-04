@@ -555,15 +555,18 @@ function calcAge(dob, isCalf) {
 
 // 全動物リスト（親牛＋子牛）
 function getAllAnimals() {
-  const calvesFormatted = calves.map(c => ({
-    id: c.id || '',           // 耳標番号（c27など）
-    name: c.name || '',
-    nationalId: c.nationalId || '',
-    dob: c.birthDate || c.dob || '',
-    breed: c.breed || '',
-    sex: c.sex || '',
-    isCalf: true,
-  }));
+  const calvesFormatted = calves
+    .filter(c => c.earTagId || c.nationalId) // 耳標か識別番号があるものだけ
+    .map(c => ({
+      id: c.earTagId || c.id,  // 耳標番号（c27など）を主キーに
+      internalId: c.id,         // Firebase内部キー
+      name: c.name || '',
+      nationalId: c.nationalId || '',
+      dob: c.birthDate || c.dob || '',
+      breed: c.breed || '',
+      sex: c.sex || '',
+      isCalf: true,
+    }));
   return [...cows, ...calvesFormatted];
 }
 
