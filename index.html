@@ -280,10 +280,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     </div>
     <div class="form-group">
       <label>処置日</label>
-      <input type="date" id="treat-date">
+      <input type="date" id="treat-date" onchange="onTreatDateChange()">
     </div>
     <div class="form-group">
       <label>使用薬品（複数追加可）</label>
+      <div id="treat-drug-preset" style="display:none;margin-bottom:10px;"></div>
       <div id="treat-drug-rows"></div>
       <button class="btn btn-secondary btn-sm mt8" onclick="addTreatDrugRow()">＋ 薬品を追加</button>
     </div>
@@ -1075,6 +1076,8 @@ function initTreatModal() {
   document.getElementById('treat-outcome-date').value = '';
   document.getElementById('treat-outcome-date').style.display = 'none';
   document.getElementById('treat-drug-rows').innerHTML = '';
+  const dpWrap = document.getElementById('treat-drug-preset');
+  if (dpWrap) { dpWrap.style.display = 'none'; dpWrap.innerHTML = ''; }
   initDiseaseSelect();
   addTreatDrugRow();
 }
@@ -1130,6 +1133,9 @@ function selectTreatCow(cowId) {
     infoEl.style.display = 'none';
   }
   updateWdPreview();
+  // 牛が変わったら薬品プリセットの投与日数を再計算
+  const dcode = document.getElementById('treat-disease-code')?.value;
+  if (dcode && DRUG_PRESETS[dcode]) loadDrugPreset(dcode);
 }
 
 function addTreatDrugRow() {
@@ -1209,6 +1215,12 @@ function saveTreat() {
     const sel = row.querySelector('select');
     const qty = parseFloat(row.querySelector('input')?.value) || 0;
     if (sel?.value && qty > 0) drugList.push({ drugId: sel.value, qty });
+  });
+  // 薬品プリセットのチェック分を追加
+  const presetDrugs = applyDrugPresetToRows();
+  presetDrugs.forEach(pd => {
+    // 重複を避ける（同じ薬が手動でも選ばれている場合は合算しない、プリセット優先）
+    if (!drugList.find(d => d.drugId === pd.drugId)) drugList.push(pd);
   });
   if (!drugList.length) { alert('薬品を1つ以上選択してください'); return; }
 
@@ -1528,6 +1540,7 @@ function loadDiseasePreset(diseaseCode) {
     patternWrap.style.display = 'none';
     checklistWrap.style.display = 'none';
     findingsWrap.style.display = '';
+    loadDrugPreset(diseaseCode);
     return;
   }
 
@@ -1551,6 +1564,190 @@ function loadDiseasePreset(diseaseCode) {
   checklistWrap.style.display = '';
   findingsWrap.style.display = 'none';
   renderChecklist(preset.patterns[0].items);
+  // 薬品プリセット
+  loadDrugPreset(diseaseCode);
+}
+
+// ===== 薬品プリセット =====
+const DRUG_PRESETS = {
+  "045501": {  // 腸炎（感染性）
+    singles: [
+      {name:"アンピシリンゾル20%「KS」", qty:2.5, checked:true, note:"抗生剤 3日間投与"},
+      {name:"メロキシカム2%注射液", qty:1, checked:false},
+    ],
+    drip: {
+      label:"点滴",
+      bases:["等張リンゲル糖V注1000","酢酸リンゲルV注射液","動物用生食V注射液","ビタミンB1加ブドウ糖Ｖ注射液5%","ビタミンB1加ブドウ糖Ｖ注射液40%","アミパレン輸液10%400ml","イントラリポス輸液10%250ml","重曹注NZ"],
+      additives:[
+        {name:"バソラミン注", qty:5},
+        {name:"レスチオン", qty:15},
+        {name:"フルスル注", qty:10},
+        {name:"UDCA注射液2.5%「KS」", qty:5},
+      ]
+    }
+  }
+};
+
+function findDrugIdByName(name) {
+  const entry = Object.entries(drugs).find(([, d]) => d.name === name);
+  return entry ? entry[0] : null;
+}
+
+function loadDrugPreset(diseaseCode) {
+  const dp = DRUG_PRESETS[diseaseCode];
+  const wrap = document.getElementById('treat-drug-preset');
+  if (!dp) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
+
+  // 投与日数を計算（同じ牛・同じ病名の初回処置日から数えて何日目か）
+  const cowId = document.getElementById('treat-cow-id')?.value;
+  const treatDate = document.getElementById('treat-date')?.value || today();
+  let dayNum = 1;
+  if (cowId) {
+    const sameCase = Object.values(treatments)
+      .filter(t => t.cowId === cowId && t.diseaseCode === diseaseCode && t.date)
+      .filter(t => {
+        const diff = (new Date(treatDate) - new Date(t.date)) / 86400000;
+        return diff >= 0 && diff <= 30;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (sameCase.length > 0) {
+      const firstDate = sameCase[0].date;
+      dayNum = Math.floor((new Date(treatDate) - new Date(firstDate)) / 86400000) + 1;
+    }
+  }
+
+  let html = '<div style="background:var(--bg3);border:1px solid var(--info);border-radius:8px;padding:10px 12px;">' +
+    '<div style="font-size:11px;color:var(--info);font-weight:700;margin-bottom:8px;">💊 この病名でよく使う薬</div>';
+
+  // 単独薬品
+  dp.singles.forEach((s, i) => {
+    const drugId = findDrugIdByName(s.name);
+    const d = drugId ? drugs[drugId] : null;
+    const unit = d?.unit || '';
+    // 抗生剤の投与日数判定：3日目まではデフォルトON、4日目以降はOFF＋警告
+    let checked = s.checked;
+    let note = s.note || '';
+    if (s.note && s.note.includes('3日間')) {
+      note = `投与${dayNum}日目`;
+      if (dayNum >= 4) {
+        checked = false;
+        note += '（3日間投与済み → 継続の要否を確認）';
+      } else {
+        note += `（3日間投与の${dayNum}/3日目）`;
+      }
+    }
+    html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+      <div onclick="toggleDrugPreset('dp_single_${i}')" style="display:flex;align-items:center;cursor:pointer;">
+        <span id="box_dp_single_${i}" style="width:22px;height:22px;border:2px solid ${checked?'var(--accent)':'var(--border)'};background:${checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${checked?'✓':''}</span>
+        <input type="checkbox" id="dp_single_${i}" ${checked?'checked':''} data-drug-id="${drugId||''}" data-name="${s.name}" style="display:none;">
+        <span style="font-size:14px;flex:1;">${s.name}</span>
+        <input type="number" id="dp_single_qty_${i}" value="${s.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
+        <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${unit}</span>
+      </div>
+      ${note ? `<div style="font-size:10px;color:${dayNum>=4&&s.note&&s.note.includes('3日間')?'var(--danger)':'var(--warn)'};margin-left:32px;">${note}</div>` : ''}
+    </div>`;
+  });
+
+  // 点滴
+  if (dp.drip) {
+    html += `<div style="padding:6px 0;">
+      <div onclick="toggleDrip()" style="display:flex;align-items:center;cursor:pointer;">
+        <span id="box_dp_drip" style="width:22px;height:22px;border:2px solid var(--border);background:transparent;border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;"></span>
+        <input type="checkbox" id="dp_drip" style="display:none;">
+        <span style="font-size:14px;flex:1;font-weight:700;">💧 ${dp.drip.label}</span>
+      </div>
+      <div id="drip-detail" style="display:none;margin-left:32px;margin-top:8px;">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">点滴基剤（使うものを選択・量を入力）</div>
+        ${dp.drip.bases.map((b, i) => {
+          const drugId = findDrugIdByName(b);
+          const d = drugId ? drugs[drugId] : null;
+          return `<div style="display:flex;align-items:center;padding:4px 0;">
+            <div onclick="toggleDrugPreset('dp_base_${i}')" style="display:flex;align-items:center;cursor:pointer;flex:1;">
+              <span id="box_dp_base_${i}" style="width:18px;height:18px;border:2px solid var(--border);background:transparent;border-radius:4px;margin-right:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:12px;"></span>
+              <input type="checkbox" id="dp_base_${i}" data-drug-id="${drugId||''}" data-name="${b}" style="display:none;">
+              <span style="font-size:12px;flex:1;">${b}</span>
+            </div>
+            <input type="number" id="dp_base_qty_${i}" placeholder="量" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+            <span style="font-size:11px;color:var(--muted);margin-left:2px;width:24px;">${d?.unit||'ml'}</span>
+          </div>`;
+        }).join('')}
+        <div style="font-size:11px;color:var(--muted);margin:8px 0 4px;">点滴に混注する薬（デフォルト量入り）</div>
+        ${dp.drip.additives.map((a, i) => {
+          const drugId = findDrugIdByName(a.name);
+          const d = drugId ? drugs[drugId] : null;
+          return `<div style="display:flex;align-items:center;padding:4px 0;">
+            <div onclick="toggleDrugPreset('dp_add_${i}')" style="display:flex;align-items:center;cursor:pointer;flex:1;">
+              <span id="box_dp_add_${i}" style="width:18px;height:18px;border:2px solid var(--border);background:transparent;border-radius:4px;margin-right:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:12px;"></span>
+              <input type="checkbox" id="dp_add_${i}" data-drug-id="${drugId||''}" data-name="${a.name}" style="display:none;">
+              <span style="font-size:12px;flex:1;">${a.name}</span>
+            </div>
+            <input type="number" id="dp_add_qty_${i}" value="${a.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+            <span style="font-size:11px;color:var(--muted);margin-left:2px;width:24px;">${d?.unit||'ml'}</span>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }
+
+  html += '<div style="font-size:10px;color:var(--muted);margin-top:8px;">※チェックした薬が下の「使用薬品」に追加されます</div></div>';
+  wrap.innerHTML = html;
+  wrap.style.display = '';
+}
+
+function toggleDrugPreset(chkId) {
+  const chk = document.getElementById(chkId);
+  const box = document.getElementById('box_' + chkId);
+  if (!chk || !box) return;
+  chk.checked = !chk.checked;
+  const sz = box.style.width === '18px' ? '12px' : '15px';
+  if (chk.checked) {
+    box.style.borderColor = 'var(--accent)';
+    box.style.background = 'var(--accent)';
+    box.textContent = '✓';
+  } else {
+    box.style.borderColor = 'var(--border)';
+    box.style.background = 'transparent';
+    box.textContent = '';
+  }
+}
+
+function toggleDrip() {
+  toggleDrugPreset('dp_drip');
+  const chk = document.getElementById('dp_drip');
+  const detail = document.getElementById('drip-detail');
+  if (detail) detail.style.display = chk.checked ? '' : 'none';
+}
+
+// 薬品プリセットのチェック内容を使用薬品リストに反映
+function applyDrugPresetToRows() {
+  const wrap = document.getElementById('treat-drug-preset');
+  if (!wrap || wrap.style.display === 'none') return [];
+  const selected = [];
+  // 単独薬
+  wrap.querySelectorAll('input[id^="dp_single_"]:not([id*="qty"])').forEach(chk => {
+    if (chk.checked && chk.dataset.drugId) {
+      const i = chk.id.replace('dp_single_', '');
+      const qty = parseFloat(document.getElementById('dp_single_qty_' + i)?.value) || 0;
+      if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
+    }
+  });
+  // 点滴基剤
+  wrap.querySelectorAll('input[id^="dp_base_"]:not([id*="qty"])').forEach(chk => {
+    if (chk.checked && chk.dataset.drugId) {
+      const i = chk.id.replace('dp_base_', '');
+      const qty = parseFloat(document.getElementById('dp_base_qty_' + i)?.value) || 0;
+      if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
+    }
+  });
+  // 点滴混注薬
+  wrap.querySelectorAll('input[id^="dp_add_"]:not([id*="qty"])').forEach(chk => {
+    if (chk.checked && chk.dataset.drugId) {
+      const i = chk.id.replace('dp_add_', '');
+      const qty = parseFloat(document.getElementById('dp_add_qty_' + i)?.value) || 0;
+      if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
+    }
+  });
+  return selected;
 }
 
 function selectPresetPattern(idx, diseaseCode) {
@@ -1617,6 +1814,12 @@ function toggleChk(checkId) {
 function onDiseaseCodeChange() {
   const code = document.getElementById('treat-disease-code')?.value;
   if (code) loadDiseasePreset(code);
+}
+
+function onTreatDateChange() {
+  const code = document.getElementById('treat-disease-code')?.value;
+  if (code && DRUG_PRESETS[code]) loadDrugPreset(code);
+  updateWdPreview();
 }
 
 function buildFindingsFromChecklist() {
