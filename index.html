@@ -221,7 +221,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
 <div class="page" id="page-stock">
   <div class="section-header">
     <div class="section-title">在庫一覧</div>
-    <button class="btn btn-primary btn-sm" onclick="openModal('modal-stock-in')">＋ 入庫</button>
+    <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary btn-sm" onclick="openOkiGusuri()" style="border-color:var(--warn);color:var(--warn);">🚜 置き薬</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-stock-in')">＋ 入庫</button>
+    </div>
   </div>
   <input class="search-box" placeholder="薬品名で検索..." oninput="renderStockList(this.value)" id="stock-search">
   <div id="stock-list"></div>
@@ -326,7 +329,42 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   </div>
 </div>
 
-<!-- 診療年報モーダル -->
+<!-- 置き薬出庫モーダル -->
+<div class="modal-overlay" id="modal-okigusuri">
+  <div class="modal" style="max-width:min(98vw,480px);">
+    <div class="modal-title">
+      🚜 置き薬出庫
+      <button class="modal-close" onclick="closeModal('modal-okigusuri')">✕</button>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;background:var(--bg3);padding:8px 10px;border-radius:8px;">
+      農家さんへの置き薬として在庫から出す場合に記録します。<br>カルテへの記載は不要です（在庫管理のみ）。
+    </div>
+    <div class="form-group">
+      <label>農家名</label>
+      <input type="text" id="oki-farmer" placeholder="例: 〇〇牧場">
+    </div>
+    <div class="form-group">
+      <label>薬品</label>
+      <select id="oki-drug-id" onchange="updateOkiUnit()"><option value="">選択...</option></select>
+    </div>
+    <div class="form-group">
+      <label id="oki-qty-label">数量</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="oki-qty" min="0.1" step="0.1" value="1" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+        <span id="oki-unit-label" style="color:var(--muted);font-size:13px;"></span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>出庫日</label>
+      <input type="date" id="oki-date">
+    </div>
+    <div class="form-group">
+      <label>備考</label>
+      <input type="text" id="oki-memo" placeholder="任意">
+    </div>
+    <button class="btn btn-primary" onclick="saveOkiGusuri()">出庫登録</button>
+  </div>
+</div>
 <div class="modal-overlay" id="modal-nenpo">
   <div class="modal" style="max-width:min(98vw,500px);">
     <div class="modal-title">
@@ -811,18 +849,51 @@ function renderDrugList(q = '') {
   const el = document.getElementById('drug-list');
   if (!el) return;
   let list = Object.entries(drugs).map(([id, d]) => ({ id, ...d }))
-    .sort((a, b) => a.name?.localeCompare(b.name));
-  if (q) list = list.filter(d => d.name?.toLowerCase().includes(q.toLowerCase()));
+    .sort((a, b) => (a.name||'').localeCompare(b.name, 'ja'));
+  if (q) list = list.filter(d => (d.name||'').toLowerCase().includes(q.toLowerCase()));
   if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">薬品が登録されていません<br>右上の「＋ 追加」から登録してください</p>'; return; }
-  el.innerHTML = list.map(d => `
-    <div class="list-item" onclick="editDrug('${d.id}')">
-      <div class="list-item-main">
-        <div class="list-item-name">${d.name}</div>
-        <div class="list-item-sub">${d.category || ''}${d.unit ? ' / ' + d.unit : ''}${d.wdMeat > 0 ? ' ｜ 食肉' + d.wdMeat + '日' : ''}${d.wdMilk > 0 ? ' 搾乳' + d.wdMilk + '日' : ''}</div>
-        ${d.usage ? `<div class="list-item-sub" style="margin-top:2px;">${d.usage}</div>` : ''}
-      </div>
-      <div style="color:var(--muted);font-size:18px;">›</div>
-    </div>`).join('');
+
+  // カテゴリ別にグループ化
+  const catOrder = ['ホルモン剤','抗生剤','消炎鎮痛剤','ビタミン剤','駆虫剤','ワクチン','その他'];
+  const grouped = {};
+  list.forEach(d => {
+    const cat = d.category || 'その他';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(d);
+  });
+
+  let html = '';
+  catOrder.forEach(cat => {
+    if (!grouped[cat] || !grouped[cat].length) return;
+    html += `<div style="margin-bottom:4px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;padding:8px 4px 4px;border-bottom:1px solid var(--border);margin-bottom:6px;">${cat}（${grouped[cat].length}品目）</div>
+      ${grouped[cat].map(d => `
+        <div class="list-item" onclick="editDrug('${d.id}')">
+          <div class="list-item-main">
+            <div class="list-item-name">${d.name}</div>
+            <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilk>0?' 搾乳'+d.wdMilk+'日':''}</div>
+          </div>
+          <div style="color:var(--muted);font-size:18px;">›</div>
+        </div>`).join('')}
+    </div>`;
+  });
+  // catOrderに含まれないカテゴリがあれば末尾に追加
+  Object.keys(grouped).forEach(cat => {
+    if (!catOrder.includes(cat)) {
+      html += `<div style="margin-bottom:4px;">
+        <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;padding:8px 4px 4px;border-bottom:1px solid var(--border);margin-bottom:6px;">${cat}（${grouped[cat].length}品目）</div>
+        ${grouped[cat].map(d => `
+          <div class="list-item" onclick="editDrug('${d.id}')">
+            <div class="list-item-main">
+              <div class="list-item-name">${d.name}</div>
+              <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}</div>
+            </div>
+            <div style="color:var(--muted);font-size:18px;">›</div>
+          </div>`).join('')}
+      </div>`;
+    }
+  });
+  el.innerHTML = html;
 }
 
 function renderHistory() {
@@ -1206,7 +1277,8 @@ function openStockDetail(drugId) {
       <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
         <div>
           <span style="color:${m.qty > 0 ? 'var(--accent)' : 'var(--danger)'};">${m.qty > 0 ? '＋' : ''}${m.qty}${unit}</span>
-          <span style="color:var(--muted);margin-left:8px;">${m.type === 'in' ? '入庫' : m.type === 'use' ? '使用' : m.type === 'dispose' ? '廃棄' : '調整'}</span>
+          <span style="color:var(--muted);margin-left:8px;">${{'in':'入庫','use':'使用','dispense':'置き薬','dispose':'廃棄','adjust':'調整'}[m.type]||m.type}</span>
+          ${m.farmer ? `<span style="color:var(--warn);margin-left:4px;">→${m.farmer}</span>` : ''}
           ${m.cowId ? `<span style="color:var(--info);margin-left:4px;">${cowName(m.cowId)}</span>` : ''}
         </div>
         <div style="color:var(--muted);">${fmtDate(m.date)}</div>
@@ -1342,6 +1414,56 @@ function calcWithdrawal(cowId) {
   });
   return { meatEnd: maxMeatEnd, milkEnd: maxMilkEnd };
 }
+// ===== 置き薬出庫 =====
+function openOkiGusuri() {
+  document.getElementById('oki-date').value = today();
+  document.getElementById('oki-qty').value = '1';
+  document.getElementById('oki-farmer').value = '';
+  document.getElementById('oki-memo').value = '';
+  const sel = document.getElementById('oki-drug-id');
+  sel.innerHTML = '<option value="">選択...</option>' +
+    Object.entries(drugs).sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'','ja'))
+      .map(([id,d]) => {
+        const stock = calcStock(id);
+        return `<option value="${id}">${d.name}（残:${stock}${d.unit||''}）</option>`;
+      }).join('');
+  updateOkiUnit();
+  openModal('modal-okigusuri');
+}
+
+function updateOkiUnit() {
+  const drugId = document.getElementById('oki-drug-id')?.value;
+  const unitEl = document.getElementById('oki-unit-label');
+  const qtyLabel = document.getElementById('oki-qty-label');
+  if (!unitEl || !qtyLabel) return;
+  if (drugId && drugs[drugId]) {
+    const d = drugs[drugId];
+    unitEl.textContent = d.unit || '';
+    qtyLabel.textContent = d.stockType === 'ml' ? `出庫量（${d.unit||'ml'}）` : '出庫数';
+  } else {
+    unitEl.textContent = '';
+    qtyLabel.textContent = '数量';
+  }
+}
+
+function saveOkiGusuri() {
+  const drugId = document.getElementById('oki-drug-id').value;
+  const qty = parseFloat(document.getElementById('oki-qty').value) || 0;
+  const date = document.getElementById('oki-date').value;
+  const farmer = document.getElementById('oki-farmer').value.trim();
+  const memo = document.getElementById('oki-memo').value;
+  if (!drugId) { alert('薬品を選択してください'); return; }
+  if (qty <= 0) { alert('数量を入力してください'); return; }
+  if (!farmer) { alert('農家名を入力してください'); return; }
+  const movId = 'mov_' + Date.now();
+  saveVet({
+    ['movements/' + movId]: {
+      drugId, type: 'dispense', qty: -qty, date,
+      farmer, memo: memo || '',
+    }
+  }).then(() => closeModal('modal-okigusuri'));
+}
+
 function onOutcomeChange() {
   const val = document.getElementById('treat-outcome').value;
   const dateEl = document.getElementById('treat-outcome-date');
