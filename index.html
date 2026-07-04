@@ -175,8 +175,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   <button class="tab-btn" onclick="showTab('drugs')" id="tab-drugs">
     <span>💊</span>薬品
   </button>
-  <button class="tab-btn" onclick="showTab('preset')" id="tab-preset">
-    <span>📝</span>プリセット
+  <button class="tab-btn" onclick="showTab('history')" id="tab-history">
+    <span>📋</span>履歴
   </button>
 </div>
 
@@ -498,6 +498,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       </div>
     </div>
     <div id="stockin-mode-desc" style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:var(--bg3);border-radius:6px;">新しく仕入れた分を追加します</div>
+    <div class="form-group">
+      <label>薬品</label>
+      <select id="stockin-drug-id" onchange="updateStockInUnit()"><option value="">選択...</option></select>
+    </div>
     <div class="form-group">
       <label id="stockin-qty-label">数量</label>
       <input type="number" id="stockin-qty" min="0.1" step="0.1" value="1" placeholder="入庫量">
@@ -1532,24 +1536,31 @@ function renderChecklist(items) {
     const checkId = 'chk_' + item.id;
     let extra = '';
     if (item.grade) {
-      extra = `<select id="grade_${item.id}" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 6px;font-size:12px;margin-left:4px;-webkit-appearance:none;">
-        ${item.grade.map(g => `<option value="${g}" ${g==='++'?'selected':''}>${g==='normal'?'（正常）':g}</option>`).join('')}
+      extra = `<select id="grade_${item.id}" onclick="event.stopPropagation()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
+        ${item.grade.map(g => `<option value="${g}" ${g==='++'?'selected':''}>${g==='normal'?'（正常）':item.text+g}</option>`).join('')}
       </select>`;
     } else if (item.select) {
-      extra = `<select id="sel_${item.id}" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:3px 6px;font-size:12px;margin-left:4px;-webkit-appearance:none;">
+      extra = `<select id="sel_${item.id}" onclick="event.stopPropagation()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
         ${item.select.map(s => `<option>${s}</option>`).join('')}
       </select>`;
     }
-    return `<div style="display:flex;align-items:center;padding:5px 0;border-bottom:1px solid var(--border);">
-      <input type="checkbox" id="${checkId}" ${item.checked?'checked':''} style="width:18px;height:18px;margin-right:8px;accent-color:var(--accent);">
-      <label for="${checkId}" style="font-size:13px;flex:1;">${item.text}</label>
-      ${extra}
+    return `<div onclick="toggleChecklistItem('${checkId}')" style="padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">
+      <div style="display:flex;align-items:center;">
+        <input type="checkbox" id="${checkId}" ${item.checked?'checked':''} onclick="event.stopPropagation()" style="width:20px;height:20px;margin-right:10px;accent-color:var(--accent);flex-shrink:0;">
+        <span style="font-size:14px;flex:1;">${item.text}</span>
+      </div>
+      ${extra ? `<div style="margin-left:30px;">${extra}</div>` : ''}
     </div>`;
   }).join('') +
   `<div style="margin-top:8px;">
     <label style="font-size:11px;color:var(--muted);">追記（任意）</label>
-    <textarea id="checklist-extra" rows="2" placeholder="追加所見など" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;resize:vertical;margin-top:4px;"></textarea>
+    <textarea id="checklist-extra" rows="2" placeholder="追加所見など" style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;resize:vertical;margin-top:4px;"></textarea>
   </div>`;
+}
+
+function toggleChecklistItem(checkId) {
+  const chk = document.getElementById(checkId);
+  if (chk) chk.checked = !chk.checked;
 }
 
 function onDiseaseCodeChange() {
@@ -1563,12 +1574,18 @@ function buildFindingsFromChecklist() {
   items.forEach(chk => {
     if (!chk.checked) return;
     const id = chk.id.replace('chk_', '');
-    const label = chk.nextElementSibling?.textContent?.trim() || '';
-    const grade = document.getElementById('grade_' + id)?.value || '';
-    const sel = document.getElementById('sel_' + id)?.value || '';
-    if (grade && grade !== 'normal') parts.push(label + grade);
-    else if (sel) parts.push(label + '：' + sel);
-    else parts.push(label);
+    const label = chk.parentElement?.querySelector('span')?.textContent?.trim() || '';
+    const gradeEl = document.getElementById('grade_' + id);
+    const selEl = document.getElementById('sel_' + id);
+    if (gradeEl) {
+      const g = gradeEl.value;
+      if (g === 'normal') parts.push(label + '正常');
+      else parts.push(label + g);
+    } else if (selEl) {
+      parts.push(label + '：' + selEl.value);
+    } else {
+      parts.push(label);
+    }
   });
   const extra = document.getElementById('checklist-extra')?.value?.trim() || '';
   if (extra) parts.push(extra);
