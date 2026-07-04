@@ -1536,20 +1536,21 @@ function renderChecklist(items) {
     const checkId = 'chk_' + item.id;
     let extra = '';
     if (item.grade) {
-      extra = `<select id="grade_${item.id}" onclick="event.stopPropagation()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
+      extra = `<select id="grade_${item.id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
         ${item.grade.map(g => `<option value="${g}" ${g==='++'?'selected':''}>${g==='normal'?'（正常）':item.text+g}</option>`).join('')}
       </select>`;
     } else if (item.select) {
-      extra = `<select id="sel_${item.id}" onclick="event.stopPropagation()" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
+      extra = `<select id="sel_${item.id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
         ${item.select.map(s => `<option>${s}</option>`).join('')}
       </select>`;
     }
-    return `<div onclick="toggleChecklistItem('${checkId}')" style="padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer;">
-      <div style="display:flex;align-items:center;">
-        <input type="checkbox" id="${checkId}" ${item.checked?'checked':''} onclick="event.stopPropagation()" style="width:20px;height:20px;margin-right:10px;accent-color:var(--accent);flex-shrink:0;">
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+      <div onclick="toggleChk('${checkId}')" style="display:flex;align-items:center;cursor:pointer;user-select:none;">
+        <span id="box_${checkId}" style="width:22px;height:22px;border:2px solid ${item.checked?'var(--accent)':'var(--border)'};background:${item.checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${item.checked?'✓':''}</span>
+        <input type="checkbox" id="${checkId}" ${item.checked?'checked':''} style="display:none;">
         <span style="font-size:14px;flex:1;">${item.text}</span>
       </div>
-      ${extra ? `<div style="margin-left:30px;">${extra}</div>` : ''}
+      ${extra ? `<div style="margin-left:32px;margin-top:4px;">${extra}</div>` : ''}
     </div>`;
   }).join('') +
   `<div style="margin-top:8px;">
@@ -1558,9 +1559,20 @@ function renderChecklist(items) {
   </div>`;
 }
 
-function toggleChecklistItem(checkId) {
+function toggleChk(checkId) {
   const chk = document.getElementById(checkId);
-  if (chk) chk.checked = !chk.checked;
+  const box = document.getElementById('box_' + checkId);
+  if (!chk || !box) return;
+  chk.checked = !chk.checked;
+  if (chk.checked) {
+    box.style.borderColor = 'var(--accent)';
+    box.style.background = 'var(--accent)';
+    box.textContent = '✓';
+  } else {
+    box.style.borderColor = 'var(--border)';
+    box.style.background = 'transparent';
+    box.textContent = '';
+  }
 }
 
 function onDiseaseCodeChange() {
