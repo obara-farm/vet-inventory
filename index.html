@@ -231,6 +231,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     </div>
   </div>
   <input class="search-box" placeholder="薬品名で検索..." oninput="renderStockList(this.value)" id="stock-search">
+  <select id="stock-cat-filter" class="search-box" onchange="renderStockList(document.getElementById('stock-search').value)" style="margin-top:-4px;">
+    <option value="">すべてのカテゴリー</option>
+  </select>
   <div id="stock-list"></div>
 </div>
 
@@ -241,6 +244,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     <button class="btn btn-primary btn-sm" onclick="openModal('modal-drug-edit')">＋ 追加</button>
   </div>
   <input class="search-box" placeholder="薬品名で検索..." oninput="renderDrugList(this.value)" id="drug-search">
+  <select id="drug-cat-filter" class="search-box" onchange="renderDrugList(document.getElementById('drug-search').value)" style="margin-top:-4px;">
+    <option value="">すべてのカテゴリー</option>
+  </select>
   <div id="drug-list"></div>
 </div>
 
@@ -542,12 +548,26 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     <div class="form-group">
       <label>カテゴリ</label>
       <select id="drug-category">
-        <option value="ホルモン剤">ホルモン剤</option>
         <option value="抗生剤">抗生剤</option>
-        <option value="消炎鎮痛剤">消炎鎮痛剤</option>
+        <option value="抗コクシジウム剤">抗コクシジウム剤</option>
+        <option value="解熱・鎮痛・抗炎症剤">解熱・鎮痛・抗炎症剤</option>
+        <option value="ホルモン剤">ホルモン剤</option>
+        <option value="ビタミン剤">ビタミン剤</option>
+        <option value="鉄剤">鉄剤</option>
+        <option value="肝機能改善剤">肝機能改善剤</option>
+        <option value="胃粘膜保護剤">胃粘膜保護剤</option>
+        <option value="気管支拡張薬">気管支拡張薬</option>
+        <option value="強心・呼吸促進剤">強心・呼吸促進剤</option>
+        <option value="止血剤">止血剤</option>
+        <option value="鎮痙剤">鎮痙剤</option>
+        <option value="点滴">点滴</option>
+        <option value="整腸・止瀉剤">整腸・止瀉剤</option>
+        <option value="皮膚保護剤">皮膚保護剤</option>
+        <option value="尿路結石溶解剤">尿路結石溶解剤</option>
+        <option value="抗凝固剤">抗凝固剤</option>
+        <option value="消毒剤">消毒剤</option>
         <option value="ワクチン">ワクチン</option>
         <option value="駆虫剤">駆虫剤</option>
-        <option value="ビタミン剤">ビタミン剤</option>
         <option value="その他">その他</option>
       </select>
     </div>
@@ -824,6 +844,7 @@ function renderAll() {
   renderTreatList();
   renderStockList();
   renderDrugList();
+  populateCategoryFilters();
   renderHistory();
 }
 
@@ -903,9 +924,11 @@ function renderStockList(q = '') {
   const el = document.getElementById('stock-list');
   if (!el) return;
   const stockMap = getDrugStock();
-  let list = Object.values(stockMap).sort((a, b) => a.name?.localeCompare(b.name));
+  const catFilter = document.getElementById('stock-cat-filter')?.value || '';
+  let list = Object.values(stockMap).sort((a, b) => a.name?.localeCompare(b.name, 'ja'));
   if (q) list = list.filter(d => d.name?.toLowerCase().includes(q.toLowerCase()));
-  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">薬品が登録されていません</p>'; return; }
+  if (catFilter) list = list.filter(d => (d.category || 'その他') === catFilter);
+  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">該当する薬品がありません</p>'; return; }
   el.innerHTML = list.map(d => {
     const isLow = d.threshold > 0 && d.stock <= d.threshold;
     const isOut = d.stock <= 0;
@@ -926,16 +949,32 @@ function renderStockList(q = '') {
   }).join('');
 }
 
+function populateCategoryFilters() {
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','その他'];
+  // 実際に使われているカテゴリーだけ
+  const usedCats = new Set(Object.values(drugs).map(d => d.category || 'その他'));
+  const cats = catOrder.filter(c => usedCats.has(c));
+  ['drug-cat-filter', 'stock-cat-filter'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">すべてのカテゴリー</option>' +
+      cats.map(c => `<option value="${c}" ${c===current?'selected':''}>${c}</option>`).join('');
+  });
+}
+
 function renderDrugList(q = '') {
   const el = document.getElementById('drug-list');
   if (!el) return;
+  const catFilter = document.getElementById('drug-cat-filter')?.value || '';
   let list = Object.entries(drugs).map(([id, d]) => ({ id, ...d }))
     .sort((a, b) => (a.name||'').localeCompare(b.name, 'ja'));
   if (q) list = list.filter(d => (d.name||'').toLowerCase().includes(q.toLowerCase()));
-  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">薬品が登録されていません<br>右上の「＋ 追加」から登録してください</p>'; return; }
+  if (catFilter) list = list.filter(d => (d.category || 'その他') === catFilter);
+  if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">該当する薬品がありません</p>'; return; }
 
   // カテゴリ別にグループ化
-  const catOrder = ['ホルモン剤','抗生剤','消炎鎮痛剤','ビタミン剤','駆虫剤','ワクチン','その他'];
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','その他'];
   const grouped = {};
   list.forEach(d => {
     const cat = d.category || 'その他';
