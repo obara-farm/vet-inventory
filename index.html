@@ -1347,6 +1347,13 @@ function initStockInModal() {
   updateStockInUnit();
 }
 
+// 特定の薬品を選択した状態で入庫モーダルを開く
+function openStockInFor(drugId) {
+  openModal('modal-stock-in');
+  const sel = document.getElementById('stockin-drug-id');
+  if (sel) { sel.value = drugId; updateStockInUnit(); }
+}
+
 function setStockInMode(mode) {
   const descEl = document.getElementById('stockin-mode-desc');
   const btnIn = document.getElementById('stockin-mode-in');
@@ -1609,7 +1616,7 @@ function openStockDetail(drugId) {
         <div style="color:var(--muted);">${fmtDate(m.date)}</div>
       </div>`).join('') : '<p class="text-muted" style="text-align:center;padding:12px;">履歴なし</p>'}
     <div style="margin-top:12px;display:flex;gap:8px;">
-      <button class="btn btn-primary btn-sm" onclick="closeModal('modal-stock-detail');openModal('modal-stock-in');" style="flex:1;">＋ 入庫</button>
+      <button class="btn btn-primary btn-sm" onclick="closeModal('modal-stock-detail');openStockInFor('${drugId}');" style="flex:1;">＋ 入庫</button>
       <button class="btn btn-secondary btn-sm" onclick="editDrug('${drugId}')" style="flex:1;">薬品設定</button>
     </div>
     <button class="btn btn-secondary btn-sm mt8" onclick="openDispose('${drugId}')" style="width:100%;border-color:var(--danger);color:var(--danger);">🗑 廃棄処分</button>`;
