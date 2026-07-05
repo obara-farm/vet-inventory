@@ -548,7 +548,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     </div>
     <div class="form-group">
       <label id="stockin-qty-label">数量</label>
-      <input type="number" id="stockin-qty" min="0.1" step="0.1" value="1" placeholder="入庫量">
+      <input type="number" id="stockin-qty" min="0" step="1" value="1" placeholder="数量" oninput="enforceStockInStep(this)">
     </div>
     <div class="form-group" id="stockin-partial-wrap" style="display:none;">
       <label style="font-size:11px;color:var(--warn);">開封済み瓶がある場合</label>
@@ -1347,6 +1347,13 @@ function initStockInModal() {
   updateStockInUnit();
 }
 
+// 入庫数量：整数入力の薬品では小数を除去
+function enforceStockInStep(input) {
+  if (input.step === '1' && input.value.includes('.')) {
+    input.value = Math.floor(parseFloat(input.value) || 0);
+  }
+}
+
 // 特定の薬品を選択した状態で入庫モーダルを開く
 function openStockInFor(drugId) {
   openModal('modal-stock-in');
@@ -1358,23 +1365,19 @@ function setStockInMode(mode) {
   const descEl = document.getElementById('stockin-mode-desc');
   const btnIn = document.getElementById('stockin-mode-in');
   const btnCount = document.getElementById('stockin-mode-count');
-  const partialWrap = document.getElementById('stockin-partial-wrap');
-  const qtyLabel = document.getElementById('stockin-qty-label');
+  document.getElementById('stockin-mode-in').dataset.mode = mode;
   if (mode === 'count') {
     descEl.textContent = '今現在の残量を入力します（過去の入出庫は無視して現在の数量として登録）';
     descEl.style.color = 'var(--warn)';
     btnIn.style.background = 'var(--bg3)'; btnIn.style.color = 'var(--text)';
     btnCount.style.background = 'var(--warn)'; btnCount.style.color = '#000';
-    if (qtyLabel) qtyLabel.textContent = '現在の残量';
-    if (partialWrap) partialWrap.style.display = 'none';
   } else {
     descEl.textContent = '新しく仕入れた分を追加します';
     descEl.style.color = 'var(--muted)';
     btnIn.style.background = 'var(--accent)'; btnIn.style.color = '#000';
     btnCount.style.background = 'var(--bg3)'; btnCount.style.color = 'var(--text)';
-    updateStockInUnit();
   }
-  document.getElementById('stockin-mode-in').dataset.mode = mode;
+  updateStockInUnit();
 }
 
 function updateStockInUnit() {
