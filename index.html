@@ -372,7 +372,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     <div class="form-group">
       <label id="oki-qty-label">数量</label>
       <div style="display:flex;gap:8px;align-items:center;">
-        <input type="number" id="oki-qty" min="0.1" step="0.1" value="1" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+        <input type="number" id="oki-qty" min="1" step="1" value="1" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
         <span id="oki-unit-label" style="color:var(--muted);font-size:13px;"></span>
       </div>
     </div>
@@ -987,7 +987,8 @@ function renderStockList(q = '') {
   if (q) list = list.filter(d => d.name?.toLowerCase().includes(q.toLowerCase()));
   if (catFilter) list = list.filter(d => (d.category || 'その他') === catFilter);
   if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">該当する薬品がありません</p>'; return; }
-  el.innerHTML = list.map(d => {
+
+  const renderItem = (d) => {
     const isLow = d.threshold > 0 && d.stock <= d.threshold;
     const isOut = d.stock <= 0;
     const badge = isOut ? '<span class="list-item-badge badge-out">在庫切れ</span>' :
@@ -996,7 +997,7 @@ function renderStockList(q = '') {
     return `<div class="list-item" onclick="openStockDetail('${d.id}')">
       <div class="list-item-main">
         <div class="list-item-name">${d.name}</div>
-        <div class="list-item-sub">${d.category || ''} ${d.wdMeat > 0 ? `｜食肉${d.wdMeat}日` : ''} ${d.wdMilk > 0 ? `搾乳${d.wdMilk}日` : ''}</div>
+        <div class="list-item-sub">${d.wdMeat > 0 ? `食肉${d.wdMeat}日` : ''} ${d.wdMilk > 0 ? `搾乳${d.wdMilk}日` : ''}</div>
       </div>
       <div style="text-align:right;">
         ${d.stockType==='ml'&&d.volume>0
@@ -1005,7 +1006,23 @@ function renderStockList(q = '') {
         ${badge}
       </div>
     </div>`;
-  }).join('');
+  };
+
+  // カテゴリ別グループ表示
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','ワクチン','駆虫剤','その他'];
+  const grouped = {};
+  list.forEach(d => {
+    const cat = d.category || 'その他';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push(d);
+  });
+  const orderedCats = catOrder.filter(c => grouped[c]).concat(Object.keys(grouped).filter(c => !catOrder.includes(c)));
+
+  el.innerHTML = orderedCats.map(cat => `
+    <div style="margin-bottom:4px;">
+      <div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;padding:8px 4px 4px;border-bottom:1px solid var(--border);margin-bottom:6px;">${cat}（${grouped[cat].length}）</div>
+      ${grouped[cat].map(renderItem).join('')}
+    </div>`).join('');
 }
 
 function populateCategoryFilters() {
@@ -1344,6 +1361,7 @@ function initStockInModal() {
         const type = d.stockType === 'ml' ? 'ml管理' : '本数管理';
         return `<option value="${id}">${d.name}（残:${stock}${unit} / ${type}）</option>`;
       }).join('');
+  setStockInMode('in');
   updateStockInUnit();
 }
 
@@ -2674,8 +2692,16 @@ function updateOkiUnit() {
   if (!unitEl || !qtyLabel) return;
   if (drugId && drugs[drugId]) {
     const d = drugs[drugId];
-    unitEl.textContent = d.unit || '';
-    qtyLabel.textContent = d.stockType === 'ml' ? `出庫量（${d.unit||'ml'}）` : '出庫数';
+    if (d.stockType === 'ml' && d.volume > 0) {
+      unitEl.textContent = `本（1本${d.volume}${d.unit||'ml'}）`;
+      qtyLabel.textContent = '出庫本数';
+    } else if (d.stockType === 'ml') {
+      unitEl.textContent = d.unit || 'ml';
+      qtyLabel.textContent = `出庫量（${d.unit||'ml'}）`;
+    } else {
+      unitEl.textContent = d.unit || '本';
+      qtyLabel.textContent = '出庫数';
+    }
   } else {
     unitEl.textContent = '';
     qtyLabel.textContent = '数量';
@@ -2684,18 +2710,26 @@ function updateOkiUnit() {
 
 function saveOkiGusuri() {
   const drugId = document.getElementById('oki-drug-id').value;
-  const qty = parseFloat(document.getElementById('oki-qty').value) || 0;
+  let qty = parseFloat(document.getElementById('oki-qty').value) || 0;
   const date = document.getElementById('oki-date').value;
   const farmer = document.getElementById('oki-farmer').value.trim();
   const memo = document.getElementById('oki-memo').value;
   if (!drugId) { alert('薬品を選択してください'); return; }
   if (qty <= 0) { alert('数量を入力してください'); return; }
   if (!farmer) { alert('農家名を入力してください'); return; }
+  const d = drugs[drugId];
+  // ml管理で容量ありの場合は本数→ml換算
+  let actualQty = qty;
+  let memoText = memo || '';
+  if (d && d.stockType === 'ml' && d.volume > 0) {
+    actualQty = qty * d.volume;
+    memoText = `${qty}本(${actualQty}${d.unit||'ml'})` + (memo ? '／'+memo : '');
+  }
   const movId = 'mov_' + Date.now();
   saveVet({
     ['movements/' + movId]: {
-      drugId, type: 'dispense', qty: -qty, date,
-      farmer, memo: memo || '',
+      drugId, type: 'dispense', qty: -actualQty, date,
+      farmer, memo: memoText,
     }
   }).then(() => closeModal('modal-okigusuri'));
 }
