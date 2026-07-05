@@ -2076,6 +2076,17 @@ function loadDiseasePreset(diseaseCode) {
 
 // ===== 薬品プリセット =====
 const DRUG_PRESETS = {
+  "062400": {  // 鈍性発情（ホルモン処置）
+    pairs: [
+      { label:"P4製剤（どちらか）", a:{name:"シダー1900", qty:1, unit:"個"}, b:{name:"プリットデルタ", qty:1, unit:"個"} },
+    ],
+    singles: [
+      {name:"レジプロン", qty:2, checked:false},
+      {name:"オバホルモン注", qty:1, checked:false},
+      {name:"コンサルタン注射液", qty:2, checked:false},
+      {name:"ゴナトロピン3000", qty:2.5, checked:false},
+    ],
+  },
   "045501": {  // 腸炎（感染性）
     singles: [
       {name:"アンピシリンゾル20%「KS」", qty:2.5, checked:true, note:"抗生剤 3日間投与"},
@@ -2161,8 +2172,34 @@ function loadDrugPreset(diseaseCode) {
   let html = '<div style="background:var(--bg3);border:1px solid var(--info);border-radius:8px;padding:10px 12px;">' +
     '<div style="font-size:11px;color:var(--info);font-weight:700;margin-bottom:8px;">💊 この病名でよく使う薬</div>';
 
+  // 排他ペア（どちらか一方）
+  if (dp.pairs) {
+    dp.pairs.forEach((p, pi) => {
+      const aId = findDrugIdByName(p.a.name), bId = findDrugIdByName(p.b.name);
+      const aUnit = p.a.unit || (aId && drugs[aId] ? drugs[aId].unit : '') || '';
+      const bUnit = p.b.unit || (bId && drugs[bId] ? drugs[bId].unit : '') || '';
+      html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${p.label}</div>
+        <div onclick="toggleDpPair(${pi},'a')" style="display:flex;align-items:center;cursor:pointer;">
+          <span id="box_dp_pair_${pi}_a" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
+          <input type="checkbox" id="dp_pair_${pi}_a" data-drug-id="${aId||''}" data-name="${p.a.name}" style="display:none;">
+          <span style="font-size:14px;flex:1;">${p.a.name}</span>
+          <input type="number" id="dp_pair_qty_${pi}_a" value="${p.a.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
+          <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${aUnit}</span>
+        </div>
+        <div onclick="toggleDpPair(${pi},'b')" style="display:flex;align-items:center;cursor:pointer;margin-top:4px;">
+          <span id="box_dp_pair_${pi}_b" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
+          <input type="checkbox" id="dp_pair_${pi}_b" data-drug-id="${bId||''}" data-name="${p.b.name}" style="display:none;">
+          <span style="font-size:14px;flex:1;">${p.b.name}</span>
+          <input type="number" id="dp_pair_qty_${pi}_b" value="${p.b.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
+          <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${bUnit}</span>
+        </div>
+      </div>`;
+    });
+  }
+
   // 単独薬品
-  dp.singles.forEach((s, i) => {
+  (dp.singles || []).forEach((s, i) => {
     const drugId = findDrugIdByName(s.name);
     const d = drugId ? drugs[drugId] : null;
     const unit = d?.unit || '';
@@ -2260,6 +2297,24 @@ function toggleDrip() {
   if (detail) detail.style.display = chk.checked ? '' : 'none';
 }
 
+// 排他ペア：片方選ぶともう片方が外れる
+function toggleDpPair(pi, side) {
+  const other = side === 'a' ? 'b' : 'a';
+  const chk = document.getElementById(`dp_pair_${pi}_${side}`);
+  const chkOther = document.getElementById(`dp_pair_${pi}_${other}`);
+  chk.checked = !chk.checked;
+  if (chk.checked && chkOther) chkOther.checked = false;
+  const setB = (id, on) => {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+    box.style.background = on ? 'var(--accent)' : 'transparent';
+    box.textContent = on ? '●' : '';
+  };
+  setB(`box_dp_pair_${pi}_${side}`, chk.checked);
+  setB(`box_dp_pair_${pi}_${other}`, false);
+}
+
 // 点滴基剤をチェックしたら混注薬に自動チェック
 function toggleDripBase(chkId) {
   toggleDrugPreset(chkId);
@@ -2294,6 +2349,14 @@ function applyDrugPresetToRows() {
     return applyPneumoniaPreset();
   }
   const selected = [];
+  // 排他ペア
+  wrap.querySelectorAll('input[id^="dp_pair_"]:not([id*="qty"])').forEach(chk => {
+    if (chk.checked && chk.dataset.drugId) {
+      const suffix = chk.id.replace('dp_pair_', '');
+      const qty = parseFloat(document.getElementById('dp_pair_qty_' + suffix)?.value) || 0;
+      if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
+    }
+  });
   // 単独薬
   wrap.querySelectorAll('input[id^="dp_single_"]:not([id*="qty"])').forEach(chk => {
     if (chk.checked && chk.dataset.drugId) {
