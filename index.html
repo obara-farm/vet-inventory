@@ -1082,7 +1082,7 @@ function renderHistory() {
   el.innerHTML = list.slice(0, 100).map(t => {
     const drugNames = (t.drugs || []).map(d => {
       const drug = drugs[d.drugId];
-      return drug ? `${drug.name} ${d.qty}${drug.unit || ''}` : d.drugId;
+      return drug ? `${drug.name} ${fmtDrugQty(d.drugId, d.qty)}` : d.drugId;
     }).join('、');
     return `<div class="treat-card" onclick="openTreatDetail('${t.id}')">
       <div class="treat-header">
@@ -1463,12 +1463,14 @@ function onStockTypeChange() {
   const type = document.getElementById('drug-stock-type').value;
   const unitEl = document.getElementById('drug-unit');
   const volWrap = document.getElementById('drug-volume-wrap');
+  const volLabel = volWrap ? volWrap.querySelector('label') : null;
   if (type === 'ml' && !unitEl.value) unitEl.value = 'ml';
   if (type === 'count' && !unitEl.value) unitEl.value = '本';
-  // ml管理のときだけ容量欄を表示
-  if (volWrap) volWrap.style.display = type === 'ml' ? '' : 'none';
+  // 容量欄は常に表示（ml管理・本数管理どちらも）
+  if (volWrap) volWrap.style.display = '';
+  if (volLabel) volLabel.textContent = type === 'ml' ? '1本(1瓶)の容量' : '1本(1アンプル)の容量（カルテ換算用）';
   const volUnit = document.getElementById('drug-volume-unit');
-  if (volUnit) volUnit.textContent = unitEl.value || 'ml';
+  if (volUnit) volUnit.textContent = 'ml';
 }
 
 function clearDrugForm() {
@@ -1479,7 +1481,7 @@ function clearDrugForm() {
   document.getElementById('drug-stock-type').value = 'count';
   document.getElementById('drug-volume').value = '';
   document.getElementById('drug-perbox').value = '';
-  document.getElementById('drug-volume-wrap').style.display = 'none';
+  document.getElementById('drug-volume-wrap').style.display = '';
   document.getElementById('drug-wd-meat').value = '0';
   document.getElementById('drug-wd-milk').value = '0';
   document.getElementById('drug-unit').value = '';
@@ -1504,9 +1506,11 @@ function editDrug(drugId) {
   document.getElementById('drug-threshold').value = d.threshold || 0;
   document.getElementById('drug-usage').value = d.usage || '';
   document.getElementById('drug-delete-btn').style.display = 'inline-block';
-  // ml管理なら容量欄を表示
-  document.getElementById('drug-volume-wrap').style.display = (d.stockType === 'ml') ? '' : 'none';
-  document.getElementById('drug-volume-unit').textContent = d.unit || 'ml';
+  // 容量欄は常に表示
+  document.getElementById('drug-volume-wrap').style.display = '';
+  const volLabel = document.getElementById('drug-volume-wrap').querySelector('label');
+  if (volLabel) volLabel.textContent = (d.stockType === 'ml') ? '1本(1瓶)の容量' : '1本(1アンプル)の容量（カルテ換算用）';
+  document.getElementById('drug-volume-unit').textContent = 'ml';
   openModal('modal-drug-edit');
 }
 
@@ -1538,6 +1542,18 @@ function deleteDrug() {
 }
 
 // ===== 在庫詳細 =====
+// 薬品の投与量を表示（本数管理で容量ありなら「2本(4ml)」形式）
+function fmtDrugQty(drugId, qty) {
+  const d = drugs[drugId];
+  if (!d) return `${qty}`;
+  const unit = d.unit || '';
+  if (d.stockType === 'count' && d.volume > 0) {
+    const ml = Math.round(qty * d.volume * 10) / 10;
+    return `${qty}${unit}(${ml}ml)`;
+  }
+  return `${qty}${unit}`;
+}
+
 // 在庫を「◯本と◯ml」形式で表示（ml管理で容量ありのとき）
 function fmtStock(drugId) {
   const d = drugs[drugId];
@@ -1606,7 +1622,7 @@ function openTreatDetail(treatId) {
   const drugRows = (t.drugs || []).map(d => {
     const drug = drugs[d.drugId];
     return drug ? `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13px;">
-      💊 ${drug.name} — ${d.qty}${drug.unit || ''}
+      💊 ${drug.name} — ${fmtDrugQty(d.drugId, d.qty)}
     </div>` : '';
   }).join('');
   document.getElementById('treat-detail-content').innerHTML = `
@@ -3004,11 +3020,14 @@ function printKarte() {
       const drug = drugs[d.drugId];
       if (!drug) return '';
       const wd = drug.wdMeat > 0 ? String(drug.wdMeat) : '';
+      const qtyDisp = (drug.stockType === 'count' && drug.volume > 0)
+        ? `${d.qty}本(${Math.round(d.qty*drug.volume*10)/10}ml)`
+        : `${d.qty||''}`;
       return `<tr>
         <td style="border:1px solid #000;padding:2px 4px;font-size:10px;white-space:nowrap;">${drug.name||''}</td>
         <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:center;">${drug.route||''}</td>
         <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:center;">${drug.unit||''}</td>
-        <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:right;">${d.qty||''}</td>
+        <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:right;">${qtyDisp}</td>
         <td style="border:1px solid #000;padding:2px 4px;font-size:10px;text-align:center;">${wd}</td>
       </tr>`;
     }).join('');
