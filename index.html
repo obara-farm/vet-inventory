@@ -13,7 +13,7 @@
   --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
   --border:#30363d;--text:#e6edf3;--muted:#8b949e;
   --accent:#3fb950;--warn:#d29922;--danger:#f85149;
-  --info:#58a6ff;--purple:#bc8cff;
+  --info:#58a6ff;--purple:#bc8cff;--pink:#e06b9e;
   --radius:10px;
 }
 body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino Sans',sans-serif;
@@ -204,6 +204,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   </div>
   <button class="btn btn-primary mt8" onclick="openModal('modal-treat')">＋ 処置を登録</button>
   <button class="btn btn-secondary mt8" onclick="openFarmTreat()" style="border-color:var(--info);color:var(--info);">🏡 農場処置（複数頭）</button>
+  <button class="btn btn-secondary mt8" onclick="openBreedTreat()" style="border-color:var(--pink,#e06b9e);color:var(--pink,#e06b9e);">🐮 繁殖処置（採卵・ET・AI）</button>
   <button class="btn btn-secondary mt8" onclick="openModal('modal-karte')" style="border-color:var(--purple);color:var(--purple);">📄 カルテ印刷</button>
   <button class="btn btn-secondary mt8" onclick="openNenpo()" style="border-color:var(--info);color:var(--info);">📊 診療年報</button>
 </div>
@@ -213,6 +214,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   <div class="section-header">
     <div class="section-title">処置記録</div>
     <div style="display:flex;gap:6px;">
+      <button class="btn btn-secondary btn-sm" onclick="openBreedTreat()" style="border-color:var(--pink,#e06b9e);color:var(--pink,#e06b9e);">🐮 繁殖</button>
       <button class="btn btn-secondary btn-sm" onclick="openFarmTreat()" style="border-color:var(--info);color:var(--info);">🏡 農場</button>
       <button class="btn btn-primary btn-sm" onclick="openModal('modal-treat')">＋ 処置</button>
     </div>
@@ -270,6 +272,13 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <button class="modal-close" onclick="closeModal('modal-treat')">✕</button>
     </div>
     <div class="form-group">
+      <label>区分</label>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="treat-kind-chiryo" onclick="setTreatKind('chiryo')" class="btn btn-primary btn-sm" style="flex:1;">治療</button>
+        <button type="button" id="treat-kind-hanshoku" onclick="setTreatKind('hanshoku')" class="btn btn-secondary btn-sm" style="flex:1;">繁殖処置（採卵・ET・AI）</button>
+      </div>
+    </div>
+    <div class="form-group">
       <label>牛（耳標 or 名前で検索）</label>
       <input type="text" id="treat-cow-search" placeholder="例: b73 / はれみ" oninput="onTreatCowSearch(this.value)">
       <div id="treat-cow-suggestions" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:200px;overflow-y:auto;"></div>
@@ -281,13 +290,23 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <label>処置日</label>
       <input type="date" id="treat-date" onchange="onTreatDateChange()">
     </div>
+    <!-- 繁殖処置：種別 -->
+    <div class="form-group" id="treat-hanshoku-type" style="display:none;">
+      <label>繁殖処置の種別</label>
+      <div style="display:flex;gap:8px;">
+        <button type="button" onclick="setHanshokuType('採卵')" id="hanshoku-saran" class="btn btn-secondary btn-sm" style="flex:1;">採卵</button>
+        <button type="button" onclick="setHanshokuType('移植')" id="hanshoku-ishoku" class="btn btn-secondary btn-sm" style="flex:1;">移植(ET)</button>
+        <button type="button" onclick="setHanshokuType('AI')" id="hanshoku-ai" class="btn btn-secondary btn-sm" style="flex:1;">AI</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:6px;">※採卵には発情同期・過剰排卵処置を含みます</div>
+    </div>
     <div class="form-group">
-      <label>使用薬品（複数追加可）</label>
+      <label id="treat-drug-label">使用薬品（複数追加可）</label>
       <div id="treat-drug-preset" style="display:none;margin-bottom:10px;"></div>
       <div id="treat-drug-rows"></div>
       <button class="btn btn-secondary btn-sm mt8" onclick="addTreatDrugRow()">＋ 薬品を追加</button>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="treat-disease-large-wrap">
       <label>病名（大分類）</label>
       <select id="treat-disease-large" onchange="onDiseaseLargeChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;">
         <option value="">選択...</option>
@@ -326,7 +345,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <label>現症・経過（任意）</label>
       <textarea id="treat-findings" placeholder="現症、処置内容、経過など" rows="3"></textarea>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="treat-outcome-wrap">
       <label>転帰（任意・後から記録可）</label>
       <div style="display:flex;gap:8px;">
         <select id="treat-outcome" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;-webkit-appearance:none;" onchange="onOutcomeChange()">
@@ -340,6 +359,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
         </select>
         <input type="date" id="treat-outcome-date" placeholder="転帰日" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;display:none;">
       </div>
+    </div>
+    <!-- 繁殖：農家への交付 -->
+    <div class="form-group" id="treat-kofu-wrap" style="display:none;border-top:2px solid var(--info);padding-top:12px;">
+      <label style="color:var(--info);">農家への交付（任意）</label>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">この牛の所有者に薬を渡して使用指示した場合。休薬期間の通知PDFを作成できます。</div>
+      <label style="font-size:12px;">交付先農場名</label>
+      <input type="text" id="treat-kofu-farm" placeholder="例: 〇〇牧場" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;margin-bottom:6px;">
+      <div style="font-size:11px;color:var(--muted);">※上の「使用薬品」が交付する薬として通知に記載されます</div>
     </div>
     <div class="form-group">
       <label>備考</label>
@@ -509,6 +536,71 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     </div>
     <div id="farm-summary" style="background:var(--bg3);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;font-size:12px;margin-bottom:12px;display:none;"></div>
     <button class="btn btn-primary" onclick="saveFarmTreat()">💾 一括登録</button>
+  </div>
+</div>
+
+<!-- 繁殖処置モーダル -->
+<div class="modal-overlay" id="modal-breed-treat">
+  <div class="modal" style="max-width:min(98vw,480px);">
+    <div class="modal-title">
+      🐮 繁殖処置
+      <button class="modal-close" onclick="closeModal('modal-breed-treat')">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;background:var(--bg3);padding:8px 10px;border-radius:8px;">
+      採卵・移植・AIのホルモン処置や麻酔を記録します（診療年報には計上されません）。農家へ薬を渡す場合は交付欄に入力すると休薬期間のお知らせPDFを作れます。
+    </div>
+    <div class="form-group">
+      <label>牛</label>
+      <input type="text" id="breed-cow-search" placeholder="耳標・名前・識別番号で検索..." oninput="onBreedCowSearch(this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;">
+      <div id="breed-cow-suggestions" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:180px;overflow-y:auto;"></div>
+      <div id="breed-cow-selected" style="font-size:12px;color:var(--accent);margin-top:4px;"></div>
+      <input type="hidden" id="breed-cow-id">
+    </div>
+    <div class="form-group">
+      <label>農場名</label>
+      <div style="display:flex;gap:8px;">
+        <select id="breed-farm-select" onchange="onBreedFarmChange()" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;-webkit-appearance:none;">
+          <option value="obara">小原牧場</option>
+          <option value="other">他農場（手入力）</option>
+        </select>
+        <input type="text" id="breed-farm-input" placeholder="農場名" style="flex:1;display:none;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>処置日</label>
+      <input type="date" id="breed-date">
+    </div>
+    <div class="form-group">
+      <label>種別</label>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="breed-kind-saran" onclick="setBreedKind('採卵')" class="btn btn-secondary btn-sm" style="flex:1;">採卵</button>
+        <button type="button" id="breed-kind-et" onclick="setBreedKind('移植')" class="btn btn-secondary btn-sm" style="flex:1;">移植(ET)</button>
+        <button type="button" id="breed-kind-ai" onclick="setBreedKind('AI')" class="btn btn-secondary btn-sm" style="flex:1;">AI</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>使用薬剤（ホルモン・麻酔など）</label>
+      <div id="breed-drug-rows"></div>
+      <button class="btn btn-secondary btn-sm mt8" onclick="addBreedDrugRow()">＋ 薬剤を追加</button>
+    </div>
+    <div class="form-group">
+      <label>メモ（任意）</label>
+      <textarea id="breed-memo" rows="2" placeholder="処置内容、次回予定など" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;resize:vertical;"></textarea>
+    </div>
+    <!-- 農家への交付 -->
+    <div class="form-group" style="border-top:2px solid var(--warn);padding-top:12px;">
+      <label style="color:var(--warn);">💊 農家へ薬剤を交付する場合</label>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">農家が投与する分。交付・使用指示として記録し、休薬期間のお知らせPDFを作成できます。</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span id="breed-kofu-box" onclick="toggleBreedKofu()" style="width:22px;height:22px;border:2px solid var(--border);background:transparent;border-radius:5px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;cursor:pointer;"></span>
+        <span onclick="toggleBreedKofu()" style="cursor:pointer;font-size:13px;">農家へ交付する</span>
+      </div>
+      <div id="breed-kofu-detail" style="display:none;">
+        <div id="breed-kofu-rows"></div>
+        <button class="btn btn-secondary btn-sm mt8" onclick="addBreedKofuRow()" style="border-color:var(--warn);color:var(--warn);">＋ 交付薬剤を追加</button>
+      </div>
+    </div>
+    <button class="btn btn-primary mt8" onclick="saveBreedTreat()">💾 登録</button>
   </div>
 </div>
 
@@ -986,7 +1078,7 @@ function renderTreatList(q = '') {
     const drugNames = (t.drugs || []).map(d => drugs[d.drugId]?.name || d.drugId).join('、');
     return `<div class="treat-card" onclick="openTreatDetail('${t.id}')">
       <div class="treat-header">
-        <div class="treat-cow">${cowDisplayShort(t.cowId)}${t.batchTreat ? ' <span style="font-size:10px;color:var(--info);">農場処置</span>' : ''}</div>
+        <div class="treat-cow">${cowDisplayShort(t.cowId)}${t.batchTreat ? ' <span style="font-size:10px;color:var(--info);">農場処置</span>' : ''}${t.hanshoku ? ` <span style="font-size:10px;color:#e06b9e;">繁殖・${t.hanshokuType||''}</span>` : ''}</div>
         <div class="treat-date">${fmtDate(t.date)}</div>
       </div>
       ${t.farmName && t.farmName !== '小原牧場' ? `<div style="font-size:11px;color:var(--info);">🏡 ${t.farmName}</div>` : ''}
@@ -1172,11 +1264,48 @@ function initTreatModal() {
   document.getElementById('treat-outcome-date').value = '';
   document.getElementById('treat-outcome-date').style.display = 'none';
   document.getElementById('treat-drug-rows').innerHTML = '';
+  const kofuF = document.getElementById('treat-kofu-farm');
+  if (kofuF) kofuF.value = '';
   const dpWrap = document.getElementById('treat-drug-preset');
   if (dpWrap) { dpWrap.style.display = 'none'; dpWrap.innerHTML = ''; }
   initDiseaseSelect();
   addTreatDrugRow();
+  setTreatKind('chiryo');
 }
+
+// 処置区分（治療 / 繁殖処置）
+let treatKind = 'chiryo';
+let hanshokuType = '';
+function setTreatKind(kind) {
+  treatKind = kind;
+  const btnC = document.getElementById('treat-kind-chiryo');
+  const btnH = document.getElementById('treat-kind-hanshoku');
+  const isChiryo = kind === 'chiryo';
+  btnC.className = 'btn btn-sm ' + (isChiryo ? 'btn-primary' : 'btn-secondary');
+  btnH.className = 'btn btn-sm ' + (isChiryo ? 'btn-secondary' : 'btn-primary');
+  // 治療専用フィールドの表示切替
+  const chiryoOnly = ['treat-disease-large-wrap','treat-disease-small-wrap','treat-complaint-wrap','treat-pattern-wrap','treat-checklist-wrap','treat-findings-wrap','treat-outcome-wrap'];
+  chiryoOnly.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = isChiryo ? (el.dataset.def || '') : 'none';
+  });
+  // 繁殖専用フィールド
+  document.getElementById('treat-hanshoku-type').style.display = isChiryo ? 'none' : '';
+  document.getElementById('treat-kofu-wrap').style.display = isChiryo ? 'none' : '';
+  document.getElementById('treat-drug-label').textContent = isChiryo ? '使用薬品（複数追加可）' : '使用薬剤（ホルモン・麻酔など）';
+  document.querySelector('#modal-treat .modal-title').childNodes[0].textContent = isChiryo ? '💉 処置を登録 ' : '🥚 繁殖処置を登録 ';
+  if (!isChiryo) { hanshokuType = ''; setHanshokuType(''); }
+}
+
+function setHanshokuType(type) {
+  hanshokuType = type;
+  ['採卵','移植','AI'].forEach(t => {
+    const btnId = {'採卵':'hanshoku-saran','移植':'hanshoku-ishoku','AI':'hanshoku-ai'}[t];
+    const btn = document.getElementById(btnId);
+    if (btn) btn.className = 'btn btn-sm ' + (t === type ? 'btn-primary' : 'btn-secondary');
+  });
+}
+
 
 function onTreatCowSearch(val) {
   const sug = document.getElementById('treat-cow-suggestions');
@@ -1332,6 +1461,41 @@ function saveTreat() {
   const wdMilkEnd = maxMilk > 0 ? addDays(date, maxMilk) : null;
 
   const treatId = 'treat_' + Date.now();
+
+  // 繁殖処置モード
+  if (treatKind === 'hanshoku') {
+    if (!hanshokuType) { alert('繁殖処置の種別（採卵/移植/AI）を選択してください'); return; }
+    const kofuFarm = document.getElementById('treat-kofu-farm')?.value.trim() || '';
+    const updates = {};
+    updates['treatments/' + treatId] = {
+      cowId, date, drugs: drugList, memo,
+      hanshoku: true, hanshokuType, kofuFarm,
+      wdMeatEnd, wdMilkEnd,
+    };
+    // 在庫減算
+    drugList.forEach(d => {
+      const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      const noteType = kofuFarm ? 'dispense' : 'use';
+      updates['movements/' + movId] = {
+        drugId: d.drugId, type: noteType, qty: -d.qty, date, cowId, treatId,
+        farmer: kofuFarm || null,
+        memo: `繁殖処置(${hanshokuType})` + (kofuFarm ? `／交付:${kofuFarm}` : '') + (memo ? '／'+memo : ''),
+      };
+    });
+    saveVet(updates).then(() => {
+      closeModal('modal-treat');
+      // 交付先があればPDF通知を作るか確認
+      if (kofuFarm) {
+        if (confirm('農家向けの休薬期間通知PDFを作成しますか？')) {
+          printKofuNotice(cowId, date, hanshokuType, drugList, kofuFarm, wdMeatEnd, wdMilkEnd);
+        }
+      }
+      showTab('home');
+    });
+    return;
+  }
+
+  // 以下、治療モード
   const diseaseCode = document.getElementById('treat-disease-code')?.value || '';
   const diseaseLarge = document.getElementById('treat-disease-large')?.value || '';
   // よく使う病名選択時は data-large から大分類を取得
@@ -2897,70 +3061,265 @@ function saveFarmTreat() {
   });
 }
 
+// ===== 繁殖処置 =====
+let breedKind = '';
+let breedKofuOn = false;
 
-function openOkiGusuri() {
-  document.getElementById('oki-date').value = today();
-  document.getElementById('oki-qty').value = '1';
-  document.getElementById('oki-farmer').value = '';
-  document.getElementById('oki-memo').value = '';
-  const sel = document.getElementById('oki-drug-id');
-  sel.innerHTML = '<option value="">選択...</option>' +
-    Object.entries(drugs).sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'','ja'))
-      .map(([id,d]) => {
-        const stock = calcStock(id);
-        return `<option value="${id}">${d.name}（残:${stock}${d.unit||''}）</option>`;
-      }).join('');
-  updateOkiUnit();
-  openModal('modal-okigusuri');
+function openBreedTreat() {
+  document.getElementById('breed-cow-search').value = '';
+  document.getElementById('breed-cow-id').value = '';
+  document.getElementById('breed-cow-selected').textContent = '';
+  document.getElementById('breed-cow-suggestions').style.display = 'none';
+  document.getElementById('breed-farm-select').value = 'obara';
+  document.getElementById('breed-farm-input').style.display = 'none';
+  document.getElementById('breed-farm-input').value = '';
+  document.getElementById('breed-date').value = today();
+  document.getElementById('breed-memo').value = '';
+  document.getElementById('breed-drug-rows').innerHTML = '';
+  document.getElementById('breed-kofu-rows').innerHTML = '';
+  document.getElementById('breed-kofu-detail').style.display = 'none';
+  breedKind = '';
+  breedKofuOn = false;
+  document.getElementById('breed-kofu-box').textContent = '';
+  document.getElementById('breed-kofu-box').style.background = 'transparent';
+  document.getElementById('breed-kofu-box').style.borderColor = 'var(--border)';
+  ['saran','et','ai'].forEach(k => {
+    const btn = document.getElementById('breed-kind-'+k);
+    btn.style.background = ''; btn.style.color = ''; btn.style.borderColor = '';
+  });
+  addBreedDrugRow();
+  openModal('modal-breed-treat');
 }
 
-function updateOkiUnit() {
-  const drugId = document.getElementById('oki-drug-id')?.value;
-  const unitEl = document.getElementById('oki-unit-label');
-  const qtyLabel = document.getElementById('oki-qty-label');
-  if (!unitEl || !qtyLabel) return;
-  if (drugId && drugs[drugId]) {
-    const d = drugs[drugId];
-    if (d.stockType === 'ml' && d.volume > 0) {
-      unitEl.textContent = `本（1V${d.volume}${d.unit||'ml'}）`;
-      qtyLabel.textContent = '出庫本数';
-    } else if (d.stockType === 'ml') {
-      unitEl.textContent = d.unit || 'ml';
-      qtyLabel.textContent = `出庫量（${d.unit||'ml'}）`;
-    } else {
-      unitEl.textContent = d.unit || '本';
-      qtyLabel.textContent = '出庫数';
-    }
+function onBreedFarmChange() {
+  const sel = document.getElementById('breed-farm-select').value;
+  const inp = document.getElementById('breed-farm-input');
+  inp.style.display = sel === 'other' ? '' : 'none';
+  if (sel === 'other') inp.focus();
+}
+
+function setBreedKind(kind) {
+  breedKind = kind;
+  const map = {'採卵':'saran','移植':'et','AI':'ai'};
+  ['saran','et','ai'].forEach(k => {
+    const btn = document.getElementById('breed-kind-'+k);
+    const on = map[kind] === k;
+    btn.style.background = on ? 'var(--accent)' : '';
+    btn.style.color = on ? '#000' : '';
+    btn.style.borderColor = on ? 'var(--accent)' : '';
+  });
+}
+
+function onBreedCowSearch(val) {
+  const sug = document.getElementById('breed-cow-suggestions');
+  if (!val) { sug.style.display = 'none'; return; }
+  const q = val.toLowerCase();
+  const all = getAllAnimals();
+  const matches = all.filter(c =>
+    c.status !== 'retired' && (
+      (c.id||'').toLowerCase().includes(q) ||
+      (c.name||'').toLowerCase().includes(q) ||
+      (c.nationalId||'').includes(q))
+  ).slice(0, 10);
+  if (!matches.length) { sug.style.display = 'none'; return; }
+  sug.innerHTML = matches.map(c => {
+    const label = c.isCalf
+      ? `${c.id} ${c.name||''} 🐄子 <span style="color:var(--muted);font-size:11px;">${c.nationalId||''}</span>`
+      : `<strong>${c.id}</strong> ${c.name||''} <span style="color:var(--muted);font-size:11px;">${c.nationalId||''}</span>`;
+    return `<div onclick="selectBreedCow('${c.id}')" ontouchstart="this.style.background='var(--bg2)'" ontouchend="this.style.background='';selectBreedCow('${c.id}')"
+       style="padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--border);">${label}</div>`;
+  }).join('');
+  sug.style.display = 'block';
+}
+
+function selectBreedCow(cowId) {
+  const all = getAllAnimals();
+  const c = all.find(x => x.id === cowId);
+  document.getElementById('breed-cow-id').value = cowId;
+  document.getElementById('breed-cow-search').value = cowId + (c?.name ? ' ' + c.name : '');
+  document.getElementById('breed-cow-selected').textContent = '✓ 選択済み: ' + cowDisplayShort(cowId);
+  document.getElementById('breed-cow-suggestions').style.display = 'none';
+}
+
+function makeBreedDrugRow(cls) {
+  const drugOptions = Object.entries(drugs)
+    .sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'','ja'))
+    .map(([id,d]) => `<option value="${id}">${d.name}（${d.unit||''}）</option>`).join('');
+  const row = document.createElement('div');
+  row.className = cls;
+  row.style.marginBottom = '6px';
+  row.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select onchange="onBreedDrugRowChange(this)" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
+        <option value="">薬剤を選択...</option>${drugOptions}
+      </select>
+      <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
+        <input type="number" min="0.1" step="0.1" value="1" style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;">
+        <span class="breed-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
+      <button onclick="this.closest('.${cls}').remove()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>
+    </div>`;
+  return row;
+}
+
+function addBreedDrugRow() {
+  document.getElementById('breed-drug-rows').appendChild(makeBreedDrugRow('breed-drug-row'));
+}
+function addBreedKofuRow() {
+  document.getElementById('breed-kofu-rows').appendChild(makeBreedDrugRow('breed-kofu-row'));
+}
+
+function onBreedDrugRowChange(sel) {
+  const row = sel.closest('div').parentElement;
+  const unitLabel = sel.closest('div').querySelector('.breed-unit-label');
+  const qtyInput = sel.closest('div').querySelector('input[type="number"]');
+  if (sel.value && drugs[sel.value]) {
+    const d = drugs[sel.value];
+    if (d.stockType === 'ml' && d.volume > 0) { unitLabel.textContent = 'V'; qtyInput.step = '1'; }
+    else if (d.stockType === 'ml') { unitLabel.textContent = d.unit || 'ml'; qtyInput.step = '0.1'; }
+    else { unitLabel.textContent = d.unit || '本'; qtyInput.step = '1'; }
+  } else unitLabel.textContent = '';
+}
+
+function toggleBreedKofu() {
+  breedKofuOn = !breedKofuOn;
+  const box = document.getElementById('breed-kofu-box');
+  const detail = document.getElementById('breed-kofu-detail');
+  if (breedKofuOn) {
+    box.textContent = '✓'; box.style.background = 'var(--accent)'; box.style.borderColor = 'var(--accent)';
+    detail.style.display = '';
+    if (!document.querySelectorAll('#breed-kofu-rows .breed-kofu-row').length) addBreedKofuRow();
   } else {
-    unitEl.textContent = '';
-    qtyLabel.textContent = '数量';
+    box.textContent = ''; box.style.background = 'transparent'; box.style.borderColor = 'var(--border)';
+    detail.style.display = 'none';
   }
 }
 
-function saveOkiGusuri() {
-  const drugId = document.getElementById('oki-drug-id').value;
-  let qty = parseFloat(document.getElementById('oki-qty').value) || 0;
-  const date = document.getElementById('oki-date').value;
-  const farmer = document.getElementById('oki-farmer').value.trim();
-  const memo = document.getElementById('oki-memo').value;
-  if (!drugId) { alert('薬品を選択してください'); return; }
-  if (qty <= 0) { alert('数量を入力してください'); return; }
-  if (!farmer) { alert('農家名を入力してください'); return; }
-  const d = drugs[drugId];
-  // ml管理で容量ありの場合は本数→ml換算
-  let actualQty = qty;
-  let memoText = memo || '';
-  if (d && d.stockType === 'ml' && d.volume > 0) {
-    actualQty = qty * d.volume;
-    memoText = `${qty}V(${actualQty}${d.unit||'ml'})` + (memo ? '／'+memo : '');
-  }
-  const movId = 'mov_' + Date.now();
-  saveVet({
-    ['movements/' + movId]: {
-      drugId, type: 'dispense', qty: -actualQty, date,
-      farmer, memo: memoText,
+function collectBreedDrugs(cls) {
+  const list = [];
+  document.querySelectorAll('#'+cls+' .'+(cls==='breed-drug-rows'?'breed-drug-row':'breed-kofu-row')).forEach(row => {
+    const sel = row.querySelector('select');
+    const qtyInput = row.querySelector('input[type="number"]');
+    const qty = parseFloat(qtyInput?.value) || 0;
+    if (sel?.value && qty > 0) {
+      const d = drugs[sel.value];
+      // V入力はml換算
+      let actualQty = qty;
+      if (d && d.stockType === 'ml' && d.volume > 0) actualQty = qty * d.volume;
+      list.push({ drugId: sel.value, qty: actualQty, inputQty: qty });
     }
-  }).then(() => closeModal('modal-okigusuri'));
+  });
+  return list;
+}
+
+function saveBreedTreat() {
+  const cowId = document.getElementById('breed-cow-id').value;
+  const date = document.getElementById('breed-date').value;
+  if (!cowId) { alert('牛を選択してください'); return; }
+  if (!date) { alert('処置日を入力してください'); return; }
+  if (!breedKind) { alert('種別（採卵・移植・AI）を選択してください'); return; }
+  const farmSel = document.getElementById('breed-farm-select').value;
+  const farmName = farmSel === 'other'
+    ? (document.getElementById('breed-farm-input').value.trim() || '不明') : '小原牧場';
+  const memo = document.getElementById('breed-memo').value;
+
+  const usedDrugs = collectBreedDrugs('breed-drug-rows');
+  const kofuDrugs = breedKofuOn ? collectBreedDrugs('breed-kofu-rows') : [];
+  if (!usedDrugs.length && !kofuDrugs.length) { alert('使用薬剤または交付薬剤を1つ以上入力してください'); return; }
+
+  const updates = {};
+  const treatId = 'breed_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+  updates['treatments/' + treatId] = {
+    cowId, date, farmName,
+    drugs: usedDrugs.map(d => ({ drugId: d.drugId, qty: d.qty })),
+    memo, breedKind, isBreeding: true,
+    kofuDrugs: kofuDrugs.length ? kofuDrugs.map(d => ({ drugId: d.drugId, qty: d.qty })) : null,
+    outcome: '', outcomeDate: '',
+  };
+  // 自分で使った薬の在庫減算
+  usedDrugs.forEach(d => {
+    const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    updates['movements/' + movId] = { drugId: d.drugId, type: 'use', qty: -d.qty, date, cowId, farmName, memo: `繁殖処置（${breedKind}）` };
+  });
+  // 交付分の在庫減算
+  kofuDrugs.forEach(d => {
+    const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + 'k';
+    updates['movements/' + movId] = { drugId: d.drugId, type: 'dispense', qty: -d.qty, date, cowId, farmer: farmName, memo: `繁殖処置交付（${breedKind}）` };
+  });
+
+  saveVet(updates).then(() => {
+    closeModal('modal-breed-treat');
+    if (kofuDrugs.length) {
+      if (confirm('登録しました。農家への休薬期間お知らせPDFを作成しますか？')) {
+        makeKofuPdf(cowId, farmName, date, breedKind, kofuDrugs);
+      }
+    } else {
+      alert('✅ 繁殖処置を登録しました');
+    }
+    showTab('treat');
+  });
+}
+
+// 農家への休薬期間お知らせPDF（印刷→LINEで共有可能）
+function makeKofuPdf(cowId, farmName, date, kind, kofuDrugs) {
+  const all = getAllAnimals();
+  const c = all.find(x => x.id === cowId);
+  const meigo = c?.nationalId ? c.nationalId.slice(-4) : cowId;
+  const drugRows = kofuDrugs.map(d => {
+    const drug = drugs[d.drugId];
+    if (!drug) return '';
+    const wdMeat = drug.wdMeat > 0 ? `使用後 ${drug.wdMeat}日間` : 'なし';
+    const wdMilk = drug.wdMilk > 0 ? `使用後 ${drug.wdMilk}日間` : 'なし';
+    let qtyDisp = `${d.qty}${drug.unit||''}`;
+    if (drug.stockType === 'ml' && drug.volume > 0) qtyDisp = `${Math.round(d.qty/drug.volume*10)/10}V(${d.qty}${drug.unit||'ml'})`;
+    return `<tr>
+      <td style="border:1px solid #000;padding:6px 10px;">${drug.name}</td>
+      <td style="border:1px solid #000;padding:6px 10px;text-align:center;">${qtyDisp}</td>
+      <td style="border:1px solid #000;padding:6px 10px;text-align:center;">${wdMeat}</td>
+      <td style="border:1px solid #000;padding:6px 10px;text-align:center;">${wdMilk}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>お薬のお知らせ</title>
+  <style>
+    @media print{@page{size:A4;margin:15mm;}.no-print{display:none;}}
+    body{font-family:'游明朝','MS Mincho',serif;color:#000;padding:20px;max-width:700px;margin:0 auto;}
+    table{border-collapse:collapse;width:100%;margin:12px 0;}
+    h1{font-size:18pt;text-align:center;}
+  </style></head><body>
+  <h1>お薬のお知らせ</h1>
+  <div style="text-align:right;font-size:11pt;">${fmtDt(date)}</div>
+  <div style="font-size:12pt;margin:12px 0;">
+    <strong>${farmName}</strong> 御中<br><br>
+    下記のとおりお薬をお渡ししました。出荷制限（休薬期間）にご注意ください。
+  </div>
+  <table style="font-size:11pt;">
+    <tr><td style="padding:4px 10px;width:120px;">対象牛</td><td style="padding:4px 10px;">個体識別番号 ${c?.nationalId||''}（${meigo}）</td></tr>
+    <tr><td style="padding:4px 10px;">処置</td><td style="padding:4px 10px;">${kind}</td></tr>
+  </table>
+  <table style="font-size:11pt;">
+    <thead><tr style="background:#eee;">
+      <th style="border:1px solid #000;padding:6px 10px;">薬剤名</th>
+      <th style="border:1px solid #000;padding:6px 10px;">数量</th>
+      <th style="border:1px solid #000;padding:6px 10px;">食肉出荷制限</th>
+      <th style="border:1px solid #000;padding:6px 10px;">出荷制限（乳）</th>
+    </tr></thead>
+    <tbody>${drugRows}</tbody>
+  </table>
+  <div style="font-size:10pt;color:#333;margin-top:8px;">
+    ※ 休薬期間は最終投与日から起算します。ご不明な点はお問い合わせください。
+  </div>
+  <div style="margin-top:24px;font-size:11pt;text-align:right;">
+    小原家畜診療所<br>獣医師　小原　千佳<br>池田町字千代田697番地
+  </div>
+  <div class="no-print" style="margin-top:24px;text-align:center;">
+    <button onclick="window.print()" style="padding:10px 20px;font-size:14px;background:#333;color:#fff;border:none;border-radius:6px;cursor:pointer;">🖨 印刷 / PDF保存してLINEで送る</button>
+  </div>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
 }
 
 // ===== 廃棄処分 =====
@@ -3307,6 +3666,70 @@ function selectKarteCow(cowId) {
 }
 
 // ===== カルテ印刷 =====
+// 農家向け 休薬期間通知（PDF/印刷・LINE共有可）
+function printKofuNotice(cowId, date, hanshokuType, drugList, farmName, wdMeatEnd, wdMilkEnd) {
+  const all = getAllAnimals();
+  const cow = all.find(c => c.id === cowId);
+  const meigo = cow?.nationalId ? cow.nationalId.slice(-4) : cowId;
+  const drugRows = drugList.map(d => {
+    const drug = drugs[d.drugId];
+    if (!drug) return '';
+    const meat = drug.wdMeat > 0 ? `使用後 ${drug.wdMeat}日間` : 'なし';
+    const milk = drug.wdMilk > 0 ? `使用後 ${drug.wdMilk}日間` : 'なし';
+    return `<tr>
+      <td style="border:1px solid #000;padding:6px 8px;">${drug.name}</td>
+      <td style="border:1px solid #000;padding:6px 8px;text-align:center;">${meat}</td>
+      <td style="border:1px solid #000;padding:6px 8px;text-align:center;">${milk}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+  <title>休薬期間のお知らせ</title>
+  <style>
+    @media print{@page{size:A4;margin:15mm;}.no-print{display:none;}}
+    body{font-family:'游ゴシック','Yu Gothic',sans-serif;color:#000;background:#fff;padding:20px;max-width:600px;margin:0 auto;}
+    table{border-collapse:collapse;width:100%;margin:12px 0;}
+    th{background:#eee;border:1px solid #000;padding:6px 8px;font-size:13px;}
+  </style></head><body>
+  <div style="text-align:center;font-size:18pt;font-weight:700;margin-bottom:8px;">薬剤使用のお知らせ</div>
+  <div style="text-align:center;font-size:12pt;margin-bottom:20px;">（休薬期間のご案内）</div>
+  <div style="font-size:13px;line-height:1.9;">
+    <div><strong>${farmName}</strong> 御中</div>
+    <div style="margin-top:12px;">下記の家畜に薬剤を使用・交付いたしました。休薬期間中は出荷・出荷用搾乳をお控えください。</div>
+  </div>
+  <table>
+    <tr><td style="border:1px solid #000;padding:6px 8px;width:120px;background:#f5f5f5;">処置日</td><td style="border:1px solid #000;padding:6px 8px;">${fmtDt(date)}</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px 8px;background:#f5f5f5;">対象牛</td><td style="border:1px solid #000;padding:6px 8px;">名号 ${meigo}${cow?.nationalId?`（個体識別番号 ${cow.nationalId}）`:''}</td></tr>
+    <tr><td style="border:1px solid #000;padding:6px 8px;background:#f5f5f5;">処置内容</td><td style="border:1px solid #000;padding:6px 8px;">繁殖処置（${hanshokuType}）</td></tr>
+  </table>
+  <table>
+    <thead><tr><th>使用薬剤</th><th style="width:130px;">食肉出荷制限</th><th style="width:130px;">搾乳制限</th></tr></thead>
+    <tbody>${drugRows}</tbody>
+  </table>
+  <div style="font-size:12px;color:#333;margin-top:8px;">※上記期間は薬剤を最後に使用した日から起算してください。ご不明な点はご連絡ください。</div>
+  <div style="margin-top:30px;text-align:right;font-size:13px;line-height:1.8;">
+    小原家畜診療所<br>獣医師　小原　千佳<br>池田町字千代田697番地
+  </div>
+  <div class="no-print" style="margin-top:24px;text-align:center;">
+    <button onclick="window.print()" style="padding:10px 24px;font-size:14px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">🖨️ 印刷 / PDF保存</button>
+    <button onclick="shareNotice()" style="padding:10px 24px;font-size:14px;background:#06c755;color:#fff;border:none;border-radius:8px;cursor:pointer;margin-left:8px;">📤 LINEで送る</button>
+  </div>
+  <script>
+    function shareNotice() {
+      const text = document.querySelector('body').innerText.replace(/🖨️.*|📤.*/g,'').trim();
+      if (navigator.share) {
+        navigator.share({ title: '休薬期間のお知らせ', text: text }).catch(function(){});
+      } else {
+        navigator.clipboard.writeText(text).then(function(){ alert('内容をコピーしました。LINEに貼り付けてください。'); });
+      }
+    }
+  <\/script>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
 function printKarte() {
   const cowId = document.getElementById('karte-cow-id').value;
   if (!cowId) { alert('牛を選択してください'); return; }
