@@ -617,6 +617,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">入庫時に「本数×容量」で在庫mlを自動計算します</div>
     </div>
+    <div class="form-group" id="drug-perbox-wrap">
+      <label>1箱の入り数（本数）</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="drug-perbox" min="1" step="1" placeholder="例: 10" style="flex:1;">
+        <span style="color:var(--muted);font-size:13px;">本／箱</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">入庫時に「◯箱」入力で自動計算します（未設定なら本数入力）</div>
+    </div>
     <div class="form-group">
       <label>食肉休薬期間（日）</label>
       <input type="number" id="drug-wd-meat" min="0" value="0" placeholder="0=なし">
@@ -1371,7 +1379,15 @@ function updateStockInUnit() {
     return;
   }
   const d = drugs[drugId];
-  if (d.stockType === 'ml') {
+  if (d.perBox > 0) {
+    // 箱入力
+    if (d.stockType === 'ml' && d.volume > 0) {
+      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}本×${d.volume}${d.unit||'ml'}）`;
+    } else {
+      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}本）`;
+    }
+    if (partialWrap) partialWrap.style.display = d.stockType === 'ml' ? '' : 'none';
+  } else if (d.stockType === 'ml') {
     if (d.volume > 0) {
       qtyLabel.textContent = `入庫本数（1本${d.volume}${d.unit||'ml'}）`;
     } else {
@@ -1409,10 +1425,20 @@ function saveStockIn() {
   } else {
     // 通常入庫
     const d = drugs[drugId];
-    // ml管理で容量設定ありの場合は本数×容量でml換算
     let actualQty = qty;
     let memoText = memo || '新品入庫';
-    if (d && d.stockType === 'ml' && d.volume > 0) {
+    if (d && d.perBox > 0) {
+      // 箱入力：箱→本→ml
+      const bottles = qty * d.perBox;
+      if (d.stockType === 'ml' && d.volume > 0) {
+        actualQty = bottles * d.volume;
+        memoText = `${qty}箱×${d.perBox}本×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
+      } else {
+        actualQty = bottles;
+        memoText = `${qty}箱×${d.perBox}本=${bottles}本` + (memo ? '／'+memo : '');
+      }
+    } else if (d && d.stockType === 'ml' && d.volume > 0) {
+      // 本数入力（ml換算）
       actualQty = qty * d.volume;
       memoText = `${qty}本×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
     }
@@ -1452,6 +1478,7 @@ function clearDrugForm() {
   document.getElementById('drug-category').value = 'ホルモン剤';
   document.getElementById('drug-stock-type').value = 'count';
   document.getElementById('drug-volume').value = '';
+  document.getElementById('drug-perbox').value = '';
   document.getElementById('drug-volume-wrap').style.display = 'none';
   document.getElementById('drug-wd-meat').value = '0';
   document.getElementById('drug-wd-milk').value = '0';
@@ -1473,6 +1500,7 @@ function editDrug(drugId) {
   document.getElementById('drug-wd-milk').value = d.wdMilk || 0;
   document.getElementById('drug-unit').value = d.unit || '';
   document.getElementById('drug-volume').value = d.volume || '';
+  document.getElementById('drug-perbox').value = d.perBox || '';
   document.getElementById('drug-threshold').value = d.threshold || 0;
   document.getElementById('drug-usage').value = d.usage || '';
   document.getElementById('drug-delete-btn').style.display = 'inline-block';
@@ -1495,6 +1523,7 @@ function saveDrug() {
     wdMilk: parseInt(document.getElementById('drug-wd-milk').value) || 0,
     unit: document.getElementById('drug-unit').value.trim(),
     volume: parseFloat(document.getElementById('drug-volume').value) || 0,
+    perBox: parseInt(document.getElementById('drug-perbox').value) || 0,
     threshold: parseInt(document.getElementById('drug-threshold').value) || 0,
     usage: document.getElementById('drug-usage').value.trim(),
   };
