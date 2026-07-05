@@ -203,8 +203,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     </div>
   </div>
   <button class="btn btn-primary mt8" onclick="openModal('modal-treat')">＋ 処置を登録</button>
-  <button class="btn btn-secondary mt8" onclick="openFarmTreat()" style="border-color:var(--info);color:var(--info);">🏡 農場処置（複数頭）</button>
-  <button class="btn btn-secondary mt8" onclick="openBreedTreat()" style="border-color:var(--pink,#e06b9e);color:var(--pink,#e06b9e);">🐮 繁殖処置（採卵・ET・AI）</button>
   <button class="btn btn-secondary mt8" onclick="openModal('modal-karte')" style="border-color:var(--purple);color:var(--purple);">📄 カルテ印刷</button>
   <button class="btn btn-secondary mt8" onclick="openNenpo()" style="border-color:var(--info);color:var(--info);">📊 診療年報</button>
 </div>
@@ -214,8 +212,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   <div class="section-header">
     <div class="section-title">処置記録</div>
     <div style="display:flex;gap:6px;">
-      <button class="btn btn-secondary btn-sm" onclick="openBreedTreat()" style="border-color:var(--pink,#e06b9e);color:var(--pink,#e06b9e);">🐮 繁殖</button>
-      <button class="btn btn-secondary btn-sm" onclick="openFarmTreat()" style="border-color:var(--info);color:var(--info);">🏡 農場</button>
       <button class="btn btn-primary btn-sm" onclick="openModal('modal-treat')">＋ 処置</button>
     </div>
   </div>
@@ -367,6 +363,17 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <label style="font-size:12px;">交付先農場名</label>
       <input type="text" id="treat-kofu-farm" placeholder="例: 〇〇牧場" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;margin-bottom:6px;">
       <div style="font-size:11px;color:var(--muted);">※上の「使用薬品」が交付する薬として通知に記載されます</div>
+    </div>
+    <!-- 治療：置き薬（往診で群に置く場合） -->
+    <div class="form-group" id="treat-oki-wrap" style="border-top:2px solid var(--warn);padding-top:12px;">
+      <label style="color:var(--warn);">🚜 置き薬（往診時・群全体用に置いていく場合／任意）</label>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">この牛の診察・診断に基づき農場に置いていく薬。カルテに交付記録が残ります。</div>
+      <div id="treat-oki-rows"></div>
+      <button class="btn btn-secondary btn-sm mt8" onclick="addTreatOkiRow()" style="border-color:var(--warn);color:var(--warn);">＋ 置き薬を追加</button>
+      <div id="treat-oki-count-wrap" style="display:none;margin-top:8px;">
+        <label style="font-size:12px;">置き薬の対象頭数の目安</label>
+        <input type="text" id="treat-oki-count" placeholder="例: 子牛約10頭分" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;">
+      </div>
     </div>
     <div class="form-group">
       <label>備考</label>
@@ -1266,6 +1273,12 @@ function initTreatModal() {
   document.getElementById('treat-drug-rows').innerHTML = '';
   const kofuF = document.getElementById('treat-kofu-farm');
   if (kofuF) kofuF.value = '';
+  const okiRows = document.getElementById('treat-oki-rows');
+  if (okiRows) okiRows.innerHTML = '';
+  const okiCount = document.getElementById('treat-oki-count');
+  if (okiCount) okiCount.value = '';
+  const okiCountWrap = document.getElementById('treat-oki-count-wrap');
+  if (okiCountWrap) okiCountWrap.style.display = 'none';
   const dpWrap = document.getElementById('treat-drug-preset');
   if (dpWrap) { dpWrap.style.display = 'none'; dpWrap.innerHTML = ''; }
   initDiseaseSelect();
@@ -1292,6 +1305,8 @@ function setTreatKind(kind) {
   // 繁殖専用フィールド
   document.getElementById('treat-hanshoku-type').style.display = isChiryo ? 'none' : '';
   document.getElementById('treat-kofu-wrap').style.display = isChiryo ? 'none' : '';
+  // 置き薬は治療モードのみ
+  document.getElementById('treat-oki-wrap').style.display = isChiryo ? '' : 'none';
   document.getElementById('treat-drug-label').textContent = isChiryo ? '使用薬品（複数追加可）' : '使用薬剤（ホルモン・麻酔など）';
   document.querySelector('#modal-treat .modal-title').childNodes[0].textContent = isChiryo ? '💉 処置を登録 ' : '🥚 繁殖処置を登録 ';
   if (!isChiryo) { hanshokuType = ''; setHanshokuType(''); }
@@ -1305,6 +1320,47 @@ function setHanshokuType(type) {
     if (btn) btn.className = 'btn btn-sm ' + (t === type ? 'btn-primary' : 'btn-secondary');
   });
 }
+
+// 治療モードの置き薬
+function addTreatOkiRow() {
+  const drugOptions = Object.entries(drugs)
+    .sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'','ja'))
+    .map(([id,d]) => `<option value="${id}">${d.name}（${d.unit||''}）</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'toki-row';
+  row.style.marginBottom = '6px';
+  row.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select onchange="onTreatOkiRowChange(this)" style="flex:1;background:var(--bg3);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
+        <option value="">置き薬を選択...</option>${drugOptions}
+      </select>
+      <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--warn);border-radius:8px;background:var(--bg3);padding:0 6px;">
+        <input type="number" min="1" step="1" value="1" style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;">
+        <span class="toki-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
+      <button onclick="this.closest('.toki-row').remove();updateTreatOkiCountVisibility()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>
+    </div>`;
+  document.getElementById('treat-oki-rows').appendChild(row);
+  updateTreatOkiCountVisibility();
+}
+
+function onTreatOkiRowChange(sel) {
+  const row = sel.closest('.toki-row');
+  const unitLabel = row.querySelector('.toki-unit-label');
+  const qtyInput = row.querySelector('input[type="number"]');
+  if (sel.value && drugs[sel.value]) {
+    const d = drugs[sel.value];
+    if (d.stockType === 'ml' && d.volume > 0) { unitLabel.textContent = 'V'; qtyInput.step = '1'; }
+    else if (d.stockType === 'ml') { unitLabel.textContent = d.unit || 'ml'; qtyInput.step = '0.1'; }
+    else { unitLabel.textContent = d.unit || '本'; qtyInput.step = '1'; }
+  } else { unitLabel.textContent = ''; }
+}
+
+function updateTreatOkiCountVisibility() {
+  const has = document.querySelectorAll('#treat-oki-rows .toki-row').length > 0;
+  document.getElementById('treat-oki-count-wrap').style.display = has ? '' : 'none';
+}
+
 
 
 function onTreatCowSearch(val) {
@@ -1447,7 +1503,23 @@ function saveTreat() {
     // 重複を避ける（同じ薬が手動でも選ばれている場合は合算しない、プリセット優先）
     if (!drugList.find(d => d.drugId === pd.drugId)) drugList.push(pd);
   });
-  if (!drugList.length) { alert('薬品を1つ以上選択してください'); return; }
+
+  // 治療モードの置き薬を収集
+  const tOkiRows = document.querySelectorAll('#treat-oki-rows .toki-row');
+  const tOkiList = [];
+  tOkiRows.forEach(row => {
+    const sel = row.querySelector('select');
+    const qty = parseFloat(row.querySelector('input')?.value) || 0;
+    if (sel?.value && qty > 0) tOkiList.push({ drugId: sel.value, qty });
+  });
+  const tOkiCount = document.getElementById('treat-oki-count')?.value.trim() || '';
+
+  if (treatKind === 'chiryo' && !drugList.length && !tOkiList.length) {
+    alert('使用薬品、または置き薬を1つ以上入力してください'); return;
+  }
+  if (treatKind === 'hanshoku' && !drugList.length) {
+    alert('使用薬剤を1つ以上入力してください'); return;
+  }
 
   // 休薬期間計算
   let maxMeat = 0, maxMilk = 0;
@@ -1505,8 +1577,22 @@ function saveTreat() {
     (DISEASE_CATEGORIES[actualLarge]?.diseases.find(d => d.code === diseaseCode)?.name ||
      FREQUENT_DISEASES.find(d => d.code === diseaseCode)?.name || '') : '';
   const updates = {};
+  // 置き薬の交付記録テキスト（この牛のカルテに追記）
+  let okiNote = '';
+  if (tOkiList.length) {
+    const okiDesc = tOkiList.map(o => {
+      const drug = drugs[o.drugId];
+      if (!drug) return '';
+      let disp = `${o.qty}${drug.unit||''}`;
+      if (drug.stockType === 'ml' && drug.volume > 0) disp = `${o.qty}V(${o.qty*drug.volume}${drug.unit||'ml'})`;
+      return `${drug.name} ${disp}`;
+    }).filter(Boolean).join('、');
+    okiNote = `【置き薬交付】${okiDesc}${tOkiCount ? '（'+tOkiCount+'）' : ''}`;
+  }
+  const finalMemo = okiNote ? (memo ? memo + '\n' + okiNote : okiNote) : memo;
+
   updates['treatments/' + treatId] = {
-    cowId, date, drugs: drugList, memo,
+    cowId, date, drugs: drugList, memo: finalMemo,
     complaint: document.getElementById('treat-complaint')?.value || '',
     findings: document.getElementById('treat-checklist-wrap')?.style.display !== 'none'
       ? buildFindingsFromChecklist()
@@ -1517,14 +1603,30 @@ function saveTreat() {
     diseaseCode, diseaseName, diseaseLarge: actualLarge,
     outcome: document.getElementById('treat-outcome')?.value || '',
     outcomeDate: document.getElementById('treat-outcome-date')?.value || '',
-    wdMeatEnd, wdMilkEnd
+    wdMeatEnd, wdMilkEnd,
+    okiGusuri: tOkiList.length ? { drugs: tOkiList, count: tOkiCount } : null,
   };
 
-  // 在庫減算
+  // 診察牛への使用薬品 在庫減算
   drugList.forEach(d => {
     const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-    updates['movements/' + movId] = { drugId: d.drugId, type: 'use', qty: -d.qty, date, cowId, treatId, memo };
+    updates['movements/' + movId] = { drugId: d.drugId, type: 'use', qty: -d.qty, date, cowId, treatId, memo: finalMemo };
   });
+
+  // 置き薬の在庫減算
+  if (tOkiList.length) {
+    tOkiList.forEach(o => {
+      const drug = drugs[o.drugId];
+      let actualQty = o.qty;
+      let okiMemo = `置き薬${tOkiCount ? '（'+tOkiCount+'）' : ''}`;
+      if (drug && drug.stockType === 'ml' && drug.volume > 0) {
+        actualQty = o.qty * drug.volume;
+        okiMemo = `置き薬 ${o.qty}V(${actualQty}${drug.unit||'ml'})${tOkiCount ? '（'+tOkiCount+'）' : ''}`;
+      }
+      const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + 'oki';
+      updates['movements/' + movId] = { drugId: o.drugId, type: 'dispense', qty: -actualQty, date, cowId, treatId, memo: okiMemo };
+    });
+  }
 
   saveVet(updates).then(() => {
     closeModal('modal-treat');
