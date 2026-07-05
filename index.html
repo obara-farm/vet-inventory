@@ -460,7 +460,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     </div>
     <div class="form-group" id="farm-disease-small-wrap" style="display:none;">
       <label>病名（詳細）</label>
-      <select id="farm-disease-code" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;"><option value="">選択...</option></select>
+      <select id="farm-disease-code" onchange="onFarmDiseaseCodeChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;"><option value="">選択...</option></select>
     </div>
     <div class="form-group">
       <label>バイタルサイン（任意・代表値）</label>
@@ -471,10 +471,18 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       </div>
     </div>
     <div class="form-group">
-      <label>稟告（任意）</label>
+      <label>稟告</label>
       <input type="text" id="farm-complaint" placeholder="例: 下痢、食欲不振" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;">
     </div>
-    <div class="form-group">
+    <div id="farm-pattern-wrap" style="display:none;margin-bottom:12px;">
+      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px;">診察パターン</label>
+      <div id="farm-pattern-btns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    </div>
+    <div class="form-group" id="farm-checklist-wrap" style="display:none;">
+      <label>現症・経過（チェックして入力）</label>
+      <div id="farm-checklist" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;"></div>
+    </div>
+    <div class="form-group" id="farm-findings-wrap">
       <label>現症・経過（任意）</label>
       <textarea id="farm-findings" rows="2" placeholder="現症、処置内容など" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;resize:vertical;"></textarea>
     </div>
@@ -2428,6 +2436,9 @@ function openFarmTreat() {
   document.getElementById('farm-resp').value = '';
   document.getElementById('farm-complaint').value = '';
   document.getElementById('farm-findings').value = '';
+  document.getElementById('farm-pattern-wrap').style.display = 'none';
+  document.getElementById('farm-checklist-wrap').style.display = 'none';
+  document.getElementById('farm-findings-wrap').style.display = '';
   document.getElementById('farm-memo').value = '';
   document.getElementById('farm-wd-preview').style.display = 'none';
   document.getElementById('farm-summary').style.display = 'none';
@@ -2610,6 +2621,109 @@ function updateFarmOkiCountVisibility() {
   document.getElementById('farm-oki-count-wrap').style.display = hasOki ? '' : 'none';
 }
 
+// 農場処置：病名プリセット
+let farmPresetPatternIdx = 0;
+function onFarmDiseaseCodeChange() {
+  const code = document.getElementById('farm-disease-code')?.value;
+  if (code) loadFarmDiseasePreset(code);
+}
+
+function loadFarmDiseasePreset(diseaseCode) {
+  const preset = DISEASE_PRESETS[diseaseCode];
+  const patternWrap = document.getElementById('farm-pattern-wrap');
+  const checklistWrap = document.getElementById('farm-checklist-wrap');
+  const findingsWrap = document.getElementById('farm-findings-wrap');
+  const complaintEl = document.getElementById('farm-complaint');
+  if (!preset) {
+    patternWrap.style.display = 'none';
+    checklistWrap.style.display = 'none';
+    findingsWrap.style.display = '';
+    return;
+  }
+  complaintEl.value = preset.complaint || '';
+  farmPresetPatternIdx = 0;
+  if (preset.patterns.length > 1) {
+    patternWrap.style.display = '';
+    document.getElementById('farm-pattern-btns').innerHTML = preset.patterns.map((p, i) =>
+      `<button type="button" onclick="selectFarmPresetPattern(${i},'${diseaseCode}')" id="farm-preset-btn-${i}"
+        style="background:${i===0?'var(--accent)':'var(--bg3)'};color:${i===0?'#000':'var(--text)'};border:1px solid ${i===0?'var(--accent)':'var(--border)'};border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">${p.label}</button>`
+    ).join('');
+  } else {
+    patternWrap.style.display = 'none';
+  }
+  checklistWrap.style.display = '';
+  findingsWrap.style.display = 'none';
+  renderFarmChecklist(preset.patterns[0].items);
+}
+
+function selectFarmPresetPattern(idx, diseaseCode) {
+  farmPresetPatternIdx = idx;
+  const preset = DISEASE_PRESETS[diseaseCode];
+  if (!preset) return;
+  preset.patterns.forEach((_, i) => {
+    const btn = document.getElementById('farm-preset-btn-' + i);
+    if (btn) {
+      btn.style.background = i === idx ? 'var(--accent)' : 'var(--bg3)';
+      btn.style.color = i === idx ? '#000' : 'var(--text)';
+      btn.style.borderColor = i === idx ? 'var(--accent)' : 'var(--border)';
+    }
+  });
+  renderFarmChecklist(preset.patterns[idx].items);
+}
+
+function renderFarmChecklist(items) {
+  const el = document.getElementById('farm-checklist');
+  el.innerHTML = items.map(item => {
+    const checkId = 'farmchk_' + item.id;
+    let extra = '';
+    if (item.grade) {
+      extra = `<select id="farmgrade_${item.id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
+        ${item.grade.map(g => `<option value="${g}" ${g==='++'?'selected':''}>${g==='normal'?'（正常）':item.text+g}</option>`).join('')}</select>`;
+    } else if (item.select) {
+      extra = `<select id="farmsel_${item.id}" style="background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:4px;-webkit-appearance:none;">
+        ${item.select.map(s => `<option>${s}</option>`).join('')}</select>`;
+    }
+    return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+      <div onclick="toggleFarmChk('${checkId}')" style="display:flex;align-items:center;cursor:pointer;user-select:none;">
+        <span id="box_${checkId}" style="width:22px;height:22px;border:2px solid ${item.checked?'var(--accent)':'var(--border)'};background:${item.checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${item.checked?'✓':''}</span>
+        <input type="checkbox" id="${checkId}" ${item.checked?'checked':''} style="display:none;">
+        <span style="font-size:14px;flex:1;">${item.text}</span>
+      </div>
+      ${extra ? `<div style="margin-left:32px;margin-top:4px;">${extra}</div>` : ''}
+    </div>`;
+  }).join('') +
+  `<div style="margin-top:8px;"><label style="font-size:11px;color:var(--muted);">追記（任意）</label>
+    <textarea id="farm-checklist-extra" rows="2" placeholder="追加所見など" style="width:100%;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;resize:vertical;margin-top:4px;"></textarea></div>`;
+}
+
+function toggleFarmChk(checkId) {
+  const chk = document.getElementById(checkId);
+  const box = document.getElementById('box_' + checkId);
+  if (!chk || !box) return;
+  chk.checked = !chk.checked;
+  if (chk.checked) { box.style.borderColor = 'var(--accent)'; box.style.background = 'var(--accent)'; box.textContent = '✓'; }
+  else { box.style.borderColor = 'var(--border)'; box.style.background = 'transparent'; box.textContent = ''; }
+}
+
+function buildFarmFindings() {
+  const items = document.querySelectorAll('#farm-checklist input[type="checkbox"]');
+  const parts = [];
+  items.forEach(chk => {
+    if (!chk.checked) return;
+    const id = chk.id.replace('farmchk_', '');
+    const label = chk.parentElement?.querySelector('span:last-child')?.textContent?.trim() || '';
+    const gradeEl = document.getElementById('farmgrade_' + id);
+    const selEl = document.getElementById('farmsel_' + id);
+    if (gradeEl) { const g = gradeEl.value; parts.push(g === 'normal' ? label + '正常' : label + g); }
+    else if (selEl) parts.push(label + '：' + selEl.value);
+    else parts.push(label);
+  });
+  const extra = document.getElementById('farm-checklist-extra')?.value?.trim() || '';
+  if (extra) parts.push(extra);
+  return parts.join('、');
+}
+
+
 
 function updateFarmWdPreview() {
   const rows = document.querySelectorAll('#farm-drug-rows .drug-row');
@@ -2710,7 +2824,9 @@ function saveFarmTreat() {
   const wdMilkEnd = maxMilk > 0 ? addDays(date, maxMilk) : null;
 
   const complaint = document.getElementById('farm-complaint').value;
-  const findings = document.getElementById('farm-findings').value;
+  const findings = document.getElementById('farm-checklist-wrap')?.style.display !== 'none'
+    ? buildFarmFindings()
+    : (document.getElementById('farm-findings').value || '');
   const temp = document.getElementById('farm-temp').value;
   const pulse = document.getElementById('farm-pulse').value;
   const resp = document.getElementById('farm-resp').value;
