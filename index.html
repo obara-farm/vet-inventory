@@ -850,7 +850,11 @@ function openModal(id) {
   document.getElementById(id).classList.add('open');
   if (id === 'modal-treat') initTreatModal();
   if (id === 'modal-stock-in') initStockInModal();
-  if (id === 'modal-drug-edit' && !document.getElementById('drug-edit-id').value) clearDrugForm();
+  if (id === 'modal-drug-edit') {
+    if (!document.getElementById('drug-edit-id').value) clearDrugForm();
+    document.getElementById('drug-volume-wrap').style.display = '';
+    onStockTypeChange();
+  }
 }
 function closeModal(id) {
   document.getElementById(id).classList.remove('open');
