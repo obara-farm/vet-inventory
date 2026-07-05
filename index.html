@@ -1960,6 +1960,12 @@ function calcDayNum(diseaseCode) {
   return dayNum;
 }
 
+// 薬品名から単位を取得
+function unitOf(name) {
+  const id = findDrugIdByName(name);
+  return id && drugs[id] ? (drugs[id].unit || '') : '';
+}
+
 function renderPneumoniaPreset() {
   const wrap = document.getElementById('treat-drug-preset');
   const dayNum = calcDayNum('031404');
@@ -1992,6 +1998,7 @@ function renderPneumoniaPreset() {
           <input type="checkbox" id="pn_${gi}_a" ${aOn?'checked':''} data-drug-id="${aId||''}" data-name="${g.a.name}" data-days3="${g.a.days3?1:0}" style="display:none;">
           <span style="font-size:13px;flex:1;">${g.a.name}${g.a.note?`<span style="font-size:10px;color:var(--muted);">（${g.a.note}）</span>`:''}</span>
           <input type="number" id="pn_qty_${gi}_a" value="${g.a.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.a.name)}</span>
         </div>
         ${g.a.days3?dayNote(true):''}
         <div onclick="togglePneumoniaPair(${gi},'b')" style="display:flex;align-items:center;cursor:pointer;margin-top:4px;">
@@ -1999,6 +2006,7 @@ function renderPneumoniaPreset() {
           <input type="checkbox" id="pn_${gi}_b" data-drug-id="${bId||''}" data-name="${g.b.name}" data-days3="${g.b.days3?1:0}" style="display:none;">
           <span style="font-size:13px;flex:1;">${g.b.name}${g.b.note?`<span style="font-size:10px;color:var(--muted);">（${g.b.note}）</span>`:''}</span>
           <input type="number" id="pn_qty_${gi}_b" value="${g.b.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.b.name)}</span>
         </div>
         <div id="daynote_pn_${gi}_b" style="display:${g.b.days3?'none':'none'};"></div>
       </div>`;
@@ -2010,6 +2018,7 @@ function renderPneumoniaPreset() {
           <input type="checkbox" id="pn_${gi}_s" ${g.checked?'checked':''} data-drug-id="${id||''}" data-name="${g.name}" style="display:none;">
           <span style="font-size:13px;flex:1;">${g.name}</span>
           <input type="number" id="pn_qty_${gi}_s" value="${g.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.name)}</span>
         </div>
       </div>`;
     } else if (g.type === 'antipyretic') {
@@ -2024,6 +2033,7 @@ function renderPneumoniaPreset() {
             <input type="checkbox" id="pn_${gi}_ap_${oi}_s" ${chk?'checked':''} data-drug-id="${id||''}" data-name="${o.name}" style="display:none;">
             <span style="font-size:13px;flex:1;">${o.name}${o.note?`<span style="font-size:10px;color:var(--muted);">（${o.note}）</span>`:''}</span>
             <input type="number" id="pn_qty_${gi}_ap_${oi}_s" value="${o.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+            <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(o.name)}</span>
           </div>`;
         }).join('')}
       </div>`;
@@ -2037,6 +2047,7 @@ function renderPneumoniaPreset() {
             <input type="checkbox" id="pn_${gi}_c${oi}" data-drug-id="${id||''}" data-name="${o.name}" data-choice="${gi}" style="display:none;">
             <span style="font-size:13px;flex:1;">${o.name}</span>
             <input type="number" id="pn_qty_${gi}_c${oi}" value="${o.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+            <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(o.name)}</span>
           </div>`;
         }).join('')}
       </div>`;
