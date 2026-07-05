@@ -1223,7 +1223,7 @@ function renderHistory() {
   el.innerHTML = list.slice(0, 100).map(t => {
     const drugNames = (t.drugs || []).map(d => {
       const drug = drugs[d.drugId];
-      return drug ? `${drug.name} ${fmtDrugQty(d.drugId, d.qty)}` : d.drugId;
+      return drug ? `${drug.name} ${fmtDrugQty(d.drugId, d.qty, d.noStock)}` : d.drugId;
     }).join('、');
     return `<div class="treat-card" onclick="openTreatDetail('${t.id}')">
       <div class="treat-header">
@@ -1609,6 +1609,7 @@ function saveTreat() {
 
   // 診察牛への使用薬品 在庫減算
   drugList.forEach(d => {
+    if (d.noStock) return; // 塗布薬など：在庫減算しない
     const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
     updates['movements/' + movId] = { drugId: d.drugId, type: 'use', qty: -d.qty, date, cowId, treatId, memo: finalMemo };
   });
@@ -1888,9 +1889,10 @@ function deleteDrug() {
 
 // ===== 在庫詳細 =====
 // 薬品の投与量を表示（本数管理で容量ありなら「2V(4ml)」形式）
-function fmtDrugQty(drugId, qty) {
+function fmtDrugQty(drugId, qty, noStock) {
   const d = drugs[drugId];
   if (!d) return `${qty}`;
+  if (noStock || qty === 0) return '塗布・適量';
   const unit = d.unit || '';
   if (d.stockType === 'count' && d.volume > 0) {
     const ml = Math.round(qty * d.volume * 10) / 10;
@@ -1984,7 +1986,7 @@ function openTreatDetail(treatId) {
   const drugRows = (t.drugs || []).map(d => {
     const drug = drugs[d.drugId];
     return drug ? `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13px;">
-      💊 ${drug.name} — ${fmtDrugQty(d.drugId, d.qty)}
+      💊 ${drug.name} — ${fmtDrugQty(d.drugId, d.qty, d.noStock)}
     </div>` : '';
   }).join('');
   document.getElementById('treat-detail-content').innerHTML = `
@@ -2086,6 +2088,66 @@ const DRUG_PRESETS = {
       {name:"コンサルタン注射液", qty:2, checked:false},
       {name:"ゴナトロピン3000", qty:2.5, checked:false},
     ],
+  },
+  "045300": {  // 腸捻転
+    singles: [
+      {name:"パドリニウム", qty:0, checked:true},
+      {name:"アンピシリンゾル20%「KS」", qty:0, checked:false},
+    ],
+    drip: {
+      label:"点滴",
+      bases:["等張リンゲル糖V注1000","酢酸リンゲルV注射液","動物用生食V注射液","ビタミンB1加ブドウ糖Ｖ注射液5%","ビタミンB1加ブドウ糖Ｖ注射液40%","アミパレン輸液10%400ml","イントラリポス輸液10%250ml","重曹注NZ"],
+      additives:[
+        {name:"バソラミン注", qty:5},
+        {name:"レスチオン", qty:15},
+        {name:"フルスル注", qty:10},
+        {name:"UDCA注射液2.5%「KS」", qty:5},
+      ]
+    }
+  },
+  "131900": {  // 跛行・捻挫
+    singles: [
+      {name:"カンメルブルー(L)", qty:0, checked:true, noStock:true, note:"塗布（在庫減算なし）"},
+      {name:"メロキシカム2%注射液", qty:0, checked:false},
+      {name:"懸濁性プロカインペニシリンG", qty:0, checked:false},
+    ],
+  },
+  "140601": {  // 外傷
+    singles: [
+      {name:"プロセーブ", qty:0, checked:true},
+      {name:"懸濁性プロカインペニシリンG", qty:0, checked:false},
+    ],
+  },
+  "081900": {  // 胎盤停滞
+    singles: [
+      {name:"レジプロン", qty:0, checked:false},
+      {name:"懸濁性プロカインペニシリンG", qty:0, checked:false, note:"3日間投与"},
+    ],
+  },
+  "063201": {  // 子宮内膜炎
+    singles: [
+      {name:"レジプロン", qty:0, checked:false},
+      {name:"懸濁性プロカインペニシリンG", qty:0, checked:false},
+      {name:"動物用イソジン液500ml", qty:0, checked:false, note:"子宮内注入"},
+    ],
+  },
+  "121300": {  // 起立不能・白筋症
+    singles: [
+      {name:"イーエスイー", qty:0, checked:false},
+      {name:"ビタミンイー注", qty:0, checked:false},
+      {name:"ビタフラルフォルテ", qty:0, checked:false},
+      {name:"水溶性デキサ注「KS」", qty:0, checked:false},
+    ],
+    drip: {
+      label:"点滴",
+      bases:["等張リンゲル糖V注1000","酢酸リンゲルV注射液","動物用生食V注射液","ビタミンB1加ブドウ糖Ｖ注射液5%","ビタミンB1加ブドウ糖Ｖ注射液40%","アミパレン輸液10%400ml","イントラリポス輸液10%250ml","重曹注NZ"],
+      additives:[
+        {name:"バソラミン注", qty:5},
+        {name:"レスチオン", qty:15},
+        {name:"フルスル注", qty:10},
+        {name:"UDCA注射液2.5%「KS」", qty:5},
+      ]
+    }
   },
   "045501": {  // 腸炎（感染性）
     singles: [
@@ -2218,7 +2280,7 @@ function loadDrugPreset(diseaseCode) {
     html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
       <div onclick="toggleDrugPreset('dp_single_${i}')" style="display:flex;align-items:center;cursor:pointer;">
         <span id="box_dp_single_${i}" style="width:22px;height:22px;border:2px solid ${checked?'var(--accent)':'var(--border)'};background:${checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${checked?'✓':''}</span>
-        <input type="checkbox" id="dp_single_${i}" ${checked?'checked':''} data-drug-id="${drugId||''}" data-name="${s.name}" style="display:none;">
+        <input type="checkbox" id="dp_single_${i}" ${checked?'checked':''} data-drug-id="${drugId||''}" data-name="${s.name}" data-nostock="${s.noStock?1:0}" style="display:none;">
         <span style="font-size:14px;flex:1;">${s.name}</span>
         <input type="number" id="dp_single_qty_${i}" value="${s.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
         <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${unit}</span>
@@ -2362,7 +2424,13 @@ function applyDrugPresetToRows() {
     if (chk.checked && chk.dataset.drugId) {
       const i = chk.id.replace('dp_single_', '');
       const qty = parseFloat(document.getElementById('dp_single_qty_' + i)?.value) || 0;
-      if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
+      const noStock = chk.dataset.nostock === '1';
+      if (noStock) {
+        // 塗布薬など：在庫減算しないが記録には残す（qty 0でも可）
+        selected.push({ drugId: chk.dataset.drugId, qty, noStock: true });
+      } else if (qty > 0) {
+        selected.push({ drugId: chk.dataset.drugId, qty });
+      }
     }
   });
   // 点滴基剤
@@ -2690,6 +2758,7 @@ const FREQUENT_DISEASES = [
   {code:'051802', name:'尿石症　膀胱結石',        large:'05'},
   {code:'131900', name:'捻挫',                    large:'13'},
   {code:'140601', name:'皮膚炎　感染症',          large:'14'},
+  {code:'063201', name:'子宮内膜炎　急性カタル性',  large:'06'},
   {code:'121900', name:'低カルシウム血症',         large:'12'},
   {code:'122000', name:'マグネシウム欠乏症',       large:'12'},
   {code:'080300', name:'乳熱',                    large:'08'},
@@ -3436,7 +3505,8 @@ function makeKofuPdf(cowId, farmName, date, kind, kofuDrugs) {
     const wdMeat = drug.wdMeat > 0 ? `使用後 ${drug.wdMeat}日間` : 'なし';
     const wdMilk = drug.wdMilk > 0 ? `使用後 ${drug.wdMilk}日間` : 'なし';
     let qtyDisp = `${d.qty}${drug.unit||''}`;
-    if (drug.stockType === 'ml' && drug.volume > 0) qtyDisp = `${Math.round(d.qty/drug.volume*10)/10}V(${d.qty}${drug.unit||'ml'})`;
+    if (d.noStock || d.qty === 0) qtyDisp = '塗布';
+    else if (drug.stockType === 'ml' && drug.volume > 0) qtyDisp = `${Math.round(d.qty/drug.volume*10)/10}V(${d.qty}${drug.unit||'ml'})`;
     return `<tr>
       <td style="border:1px solid #000;padding:6px 10px;">${drug.name}</td>
       <td style="border:1px solid #000;padding:6px 10px;text-align:center;">${qtyDisp}</td>
@@ -3928,7 +3998,8 @@ function printKarte() {
       const drug = drugs[d.drugId];
       if (!drug) return '';
       const wd = drug.wdMeat > 0 ? String(drug.wdMeat) : '';
-      const qtyDisp = (drug.stockType === 'count' && drug.volume > 0)
+      const qtyDisp = (d.noStock || d.qty === 0) ? '塗布'
+        : (drug.stockType === 'count' && drug.volume > 0)
         ? `${d.qty}V(${Math.round(d.qty*drug.volume*10)/10}ml)`
         : `${d.qty||''}`;
       return `<tr>
