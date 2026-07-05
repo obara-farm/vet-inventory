@@ -388,6 +388,43 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   </div>
 </div>
 
+<!-- 廃棄処分モーダル -->
+<div class="modal-overlay" id="modal-dispose">
+  <div class="modal" style="max-width:min(98vw,460px);">
+    <div class="modal-title">
+      🗑 廃棄処分
+      <button class="modal-close" onclick="closeModal('modal-dispose')">✕</button>
+    </div>
+    <div id="dispose-drug-name" style="font-size:15px;font-weight:700;margin-bottom:4px;"></div>
+    <div id="dispose-stock-info" style="font-size:12px;color:var(--muted);margin-bottom:12px;"></div>
+    <div class="form-group">
+      <label>廃棄理由</label>
+      <select id="dispose-reason" onchange="onDisposeReasonChange()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;">
+        <option value="expired">使用期限切れ（未開封含む）</option>
+        <option value="opened">開封後期限切れ（開封中の瓶を廃棄）</option>
+        <option value="other">その他</option>
+      </select>
+    </div>
+    <div id="dispose-opened-info" style="display:none;font-size:12px;background:var(--bg3);border:1px solid var(--warn);border-radius:8px;padding:8px 10px;margin-bottom:12px;color:var(--warn);"></div>
+    <div class="form-group">
+      <label id="dispose-qty-label">廃棄量</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="dispose-qty" min="0" step="0.1" value="0" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+        <span id="dispose-unit" style="color:var(--muted);font-size:13px;"></span>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>廃棄日</label>
+      <input type="date" id="dispose-date">
+    </div>
+    <div class="form-group">
+      <label>備考（任意）</label>
+      <input type="text" id="dispose-memo" placeholder="任意">
+    </div>
+    <button class="btn btn-primary" onclick="saveDispose()" style="background:var(--danger);border-color:var(--danger);">🗑 廃棄を記録</button>
+  </div>
+</div>
+
 <!-- 農場処置（複数頭一括）モーダル -->
 <div class="modal-overlay" id="modal-farm-treat">
   <div class="modal" style="max-width:min(98vw,520px);">
@@ -950,8 +987,9 @@ function renderStockList(q = '') {
         <div class="list-item-sub">${d.category || ''} ${d.wdMeat > 0 ? `｜食肉${d.wdMeat}日` : ''} ${d.wdMilk > 0 ? `搾乳${d.wdMilk}日` : ''}</div>
       </div>
       <div style="text-align:right;">
-        <div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}">${d.stock}</div>
-        <div class="stock-unit">${d.unit || ''}${d.stockType==='ml'&&d.volume>0?`<br>約${(d.stock/d.volume).toFixed(1)}本`:''}</div>
+        ${d.stockType==='ml'&&d.volume>0
+          ? `<div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}" style="font-size:15px;">${fmtStock(d.id)}</div><div class="stock-unit">合計${d.stock}${d.unit||''}</div>`
+          : `<div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}">${d.stock}</div><div class="stock-unit">${d.unit || ''}</div>`}
         ${badge}
       </div>
     </div>`;
@@ -1471,6 +1509,30 @@ function deleteDrug() {
 }
 
 // ===== 在庫詳細 =====
+// 在庫を「◯本と◯ml」形式で表示（ml管理で容量ありのとき）
+function fmtStock(drugId) {
+  const d = drugs[drugId];
+  const stock = calcStock(drugId);
+  const unit = d?.unit || '';
+  if (d && d.stockType === 'ml' && d.volume > 0) {
+    const bottles = Math.floor(stock / d.volume);
+    const rem = Math.round((stock - bottles * d.volume) * 10) / 10;
+    if (bottles > 0 && rem > 0) return `${bottles}本と${rem}${unit}`;
+    if (bottles > 0 && rem === 0) return `${bottles}本`;
+    return `${rem}${unit}`;
+  }
+  return `${stock}${unit}`;
+}
+
+// 開封中の瓶の残量（総在庫÷容量の余り）
+function openBottleRemainder(drugId) {
+  const d = drugs[drugId];
+  const stock = calcStock(drugId);
+  if (!d || d.stockType !== 'ml' || !d.volume || d.volume <= 0) return 0;
+  const bottles = Math.floor(stock / d.volume);
+  return Math.round((stock - bottles * d.volume) * 10) / 10;
+}
+
 function openStockDetail(drugId) {
   const d = { ...drugs[drugId], id: drugId };
   const stock = calcStock(drugId);
@@ -1482,8 +1544,8 @@ function openStockDetail(drugId) {
   document.getElementById('stock-detail-name').textContent = d.name;
   document.getElementById('stock-detail-content').innerHTML = `
     <div style="text-align:center;margin-bottom:16px;">
-      <div class="stock-num ${stock <= 0 ? 'text-danger' : stock <= d.threshold ? 'text-warn' : 'text-accent'}">${stock}</div>
-      <div class="stock-unit">${unit}</div>
+      <div class="stock-num ${stock <= 0 ? 'text-danger' : stock <= d.threshold ? 'text-warn' : 'text-accent'}">${fmtStock(drugId)}</div>
+      ${d.stockType==='ml'&&d.volume>0?`<div style="font-size:11px;color:var(--muted);">合計 ${stock}${unit}（1本${d.volume}${unit}）</div>`:''}
       ${d.threshold > 0 ? `<div style="font-size:11px;color:var(--muted);">発注閾値: ${d.threshold}${unit}</div>` : ''}
     </div>
     <div style="font-size:12px;margin-bottom:8px;color:var(--muted);">入出庫履歴（最新20件）</div>
@@ -1500,7 +1562,8 @@ function openStockDetail(drugId) {
     <div style="margin-top:12px;display:flex;gap:8px;">
       <button class="btn btn-primary btn-sm" onclick="closeModal('modal-stock-detail');openModal('modal-stock-in');" style="flex:1;">＋ 入庫</button>
       <button class="btn btn-secondary btn-sm" onclick="editDrug('${drugId}')" style="flex:1;">薬品設定</button>
-    </div>`;
+    </div>
+    <button class="btn btn-secondary btn-sm mt8" onclick="openDispose('${drugId}')" style="width:100%;border-color:var(--danger);color:var(--danger);">🗑 廃棄処分</button>`;
   openModal('modal-stock-detail');
 }
 
@@ -1624,14 +1687,50 @@ const DRUG_PRESETS = {
   }
 };
 
+// 肺炎（細菌性）薬品プリセット：3パターン・排他ペア対応
+const PNEUMONIA_DRUG_PRESET = {
+  patterns: [
+    {
+      label: "①熱なし",
+      groups: [
+        {type:"pair", label:"主抗菌薬", a:{name:"フロルガン", qty:1, days3:false, note:"ワンショット"}, b:{name:"ニューフロール450注射液", qty:1, days3:true}, defaultA:true},
+        {type:"pair", label:"併用抗菌薬", a:{name:"ドラクシンKP", qty:1, days3:false}, b:{name:"チルモベット300注", qty:1, days3:false}, defaultA:true},
+        {type:"single", name:"ジプロフィリン注300MG15%", qty:2, checked:false},
+        {type:"single", name:"メロキシカム2%注射液", qty:1, checked:false},
+      ]
+    },
+    {
+      label: "②熱あり(39.6+)",
+      groups: [
+        {type:"pair", label:"主抗菌薬", a:{name:"レスフロール", qty:1, days3:false, note:"ワンショット・解熱成分入り"}, b:{name:"ニューフロール450注射液", qty:1, days3:true}, defaultA:true},
+        {type:"pair", label:"併用抗菌薬", a:{name:"ドラクシンKP", qty:1, days3:false}, b:{name:"チルモベット300注", qty:1, days3:false}, defaultA:true},
+        {type:"single", name:"ジプロフィリン注300MG15%", qty:2, checked:false},
+        {type:"antipyretic", label:"解熱剤（ニューフロール選択時）", showWhenB:0, options:[{name:"フルニキシン注5%", qty:2, defaultChecked:true},{name:"水溶性デキサ注「KS」", qty:1, note:"より重症の場合"}]},
+      ]
+    },
+    {
+      label: "③マイコ疑い",
+      groups: [
+        {type:"pair", label:"主抗菌薬（第一選択マルボ）", a:{name:"フォーシル", qty:1, days3:false, note:"ワンショット"}, b:{name:"マルボロック10%", qty:1, days3:true}, defaultA:true},
+        {type:"pair", label:"併用抗菌薬", a:{name:"ドラクシンKP", qty:1, days3:false}, b:{name:"チルモベット300注", qty:1, days3:false}, defaultA:true},
+        {type:"single", name:"ジプロフィリン注300MG15%", qty:2, checked:true},
+        {type:"choice3", label:"解熱剤（1つ選択）", options:[{name:"フルニキシン注5%", qty:2},{name:"メロキシカム2%注射液", qty:1},{name:"水溶性デキサ注「KS」", qty:1}]},
+      ]
+    }
+  ]
+};
+let pneumoniaPatternIdx = 0;
+
 function findDrugIdByName(name) {
   const entry = Object.entries(drugs).find(([, d]) => d.name === name);
   return entry ? entry[0] : null;
 }
 
 function loadDrugPreset(diseaseCode) {
-  const dp = DRUG_PRESETS[diseaseCode];
   const wrap = document.getElementById('treat-drug-preset');
+  // 肺炎は専用レンダラー
+  if (diseaseCode === '031404') { renderPneumoniaPreset(); return; }
+  const dp = DRUG_PRESETS[diseaseCode];
   if (!dp) { wrap.style.display = 'none'; wrap.innerHTML = ''; return; }
 
   // 投与日数を計算（同じ牛・同じ病名の初回処置日から数えて何日目か）
@@ -1783,6 +1882,10 @@ function toggleDripBase(chkId) {
 function applyDrugPresetToRows() {
   const wrap = document.getElementById('treat-drug-preset');
   if (!wrap || wrap.style.display === 'none') return [];
+  // 肺炎プリセットが表示されている場合
+  if (wrap.querySelector('input[id^="pn_"]')) {
+    return applyPneumoniaPreset();
+  }
   const selected = [];
   // 単独薬
   wrap.querySelectorAll('input[id^="dp_single_"]:not([id*="qty"])').forEach(chk => {
@@ -1807,6 +1910,192 @@ function applyDrugPresetToRows() {
       const qty = parseFloat(document.getElementById('dp_add_qty_' + i)?.value) || 0;
       if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
     }
+  });
+  return selected;
+}
+
+// ===== 肺炎 薬品プリセット（専用） =====
+function calcDayNum(diseaseCode) {
+  const cowId = document.getElementById('treat-cow-id')?.value;
+  const treatDate = document.getElementById('treat-date')?.value || today();
+  let dayNum = 1;
+  if (cowId) {
+    const sameCase = Object.values(treatments)
+      .filter(t => t.cowId === cowId && t.diseaseCode === diseaseCode && t.date)
+      .filter(t => { const diff = (new Date(treatDate) - new Date(t.date)) / 86400000; return diff >= 0 && diff <= 30; })
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (sameCase.length > 0) {
+      dayNum = Math.floor((new Date(treatDate) - new Date(sameCase[0].date)) / 86400000) + 1;
+    }
+  }
+  return dayNum;
+}
+
+function renderPneumoniaPreset() {
+  const wrap = document.getElementById('treat-drug-preset');
+  const dayNum = calcDayNum('031404');
+  const pat = PNEUMONIA_DRUG_PRESET.patterns[pneumoniaPatternIdx];
+
+  // パターン切替ボタン
+  let html = '<div style="background:var(--bg3);border:1px solid var(--info);border-radius:8px;padding:10px 12px;">' +
+    '<div style="font-size:11px;color:var(--info);font-weight:700;margin-bottom:8px;">💊 肺炎の使用薬（パターンを選択）</div>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">' +
+    PNEUMONIA_DRUG_PRESET.patterns.map((p, i) =>
+      `<button type="button" onclick="selectPneumoniaPattern(${i})" style="background:${i===pneumoniaPatternIdx?'var(--accent)':'var(--bg2)'};color:${i===pneumoniaPatternIdx?'#000':'var(--text)'};border:1px solid ${i===pneumoniaPatternIdx?'var(--accent)':'var(--border)'};border-radius:6px;padding:5px 10px;font-size:12px;cursor:pointer;">${p.label}</button>`
+    ).join('') + '</div>';
+
+  const dayNote = (days3) => {
+    if (!days3) return '';
+    if (dayNum >= 4) return `<div style="font-size:10px;color:var(--danger);margin-left:32px;">投与${dayNum}日目（3日間投与済み→継続要否を確認）</div>`;
+    return `<div style="font-size:10px;color:var(--warn);margin-left:32px;">投与${dayNum}日目（3日間投与の${dayNum}/3日目）</div>`;
+  };
+
+  pat.groups.forEach((g, gi) => {
+    if (g.type === 'pair') {
+      const aId = findDrugIdByName(g.a.name), bId = findDrugIdByName(g.b.name);
+      const aChecked = g.defaultA, bChecked = false;
+      // 4日目以降、3日間薬でデフォルトチェックの場合は外す
+      const aOn = aChecked && !(g.a.days3 && dayNum >= 4);
+      html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${g.label}（どちらか）</div>
+        <div onclick="togglePneumoniaPair(${gi},'a')" style="display:flex;align-items:center;cursor:pointer;">
+          <span id="box_pn_${gi}_a" style="width:20px;height:20px;border:2px solid ${aOn?'var(--accent)':'var(--border)'};background:${aOn?'var(--accent)':'transparent'};border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;">${aOn?'●':''}</span>
+          <input type="checkbox" id="pn_${gi}_a" ${aOn?'checked':''} data-drug-id="${aId||''}" data-name="${g.a.name}" data-days3="${g.a.days3?1:0}" style="display:none;">
+          <span style="font-size:13px;flex:1;">${g.a.name}${g.a.note?`<span style="font-size:10px;color:var(--muted);">（${g.a.note}）</span>`:''}</span>
+          <input type="number" id="pn_qty_${gi}_a" value="${g.a.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+        </div>
+        ${g.a.days3?dayNote(true):''}
+        <div onclick="togglePneumoniaPair(${gi},'b')" style="display:flex;align-items:center;cursor:pointer;margin-top:4px;">
+          <span id="box_pn_${gi}_b" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
+          <input type="checkbox" id="pn_${gi}_b" data-drug-id="${bId||''}" data-name="${g.b.name}" data-days3="${g.b.days3?1:0}" style="display:none;">
+          <span style="font-size:13px;flex:1;">${g.b.name}${g.b.note?`<span style="font-size:10px;color:var(--muted);">（${g.b.note}）</span>`:''}</span>
+          <input type="number" id="pn_qty_${gi}_b" value="${g.b.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+        </div>
+        <div id="daynote_pn_${gi}_b" style="display:${g.b.days3?'none':'none'};"></div>
+      </div>`;
+    } else if (g.type === 'single') {
+      const id = findDrugIdByName(g.name);
+      html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+        <div onclick="togglePneumoniaSingle(${gi})" style="display:flex;align-items:center;cursor:pointer;">
+          <span id="box_pn_${gi}_s" style="width:20px;height:20px;border:2px solid ${g.checked?'var(--accent)':'var(--border)'};background:${g.checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;">${g.checked?'✓':''}</span>
+          <input type="checkbox" id="pn_${gi}_s" ${g.checked?'checked':''} data-drug-id="${id||''}" data-name="${g.name}" style="display:none;">
+          <span style="font-size:13px;flex:1;">${g.name}</span>
+          <input type="number" id="pn_qty_${gi}_s" value="${g.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+        </div>
+      </div>`;
+    } else if (g.type === 'antipyretic') {
+      // ニューフロール（ペアのb）選択時のみ表示
+      html += `<div id="pn_antipyretic_${gi}" style="padding:6px 0;border-bottom:1px solid var(--border);display:none;">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${g.label}</div>
+        ${g.options.map((o, oi) => {
+          const id = findDrugIdByName(o.name);
+          const chk = o.defaultChecked;
+          return `<div onclick="togglePneumoniaSingle('${gi}_ap_${oi}')" style="display:flex;align-items:center;cursor:pointer;margin-top:4px;">
+            <span id="box_pn_${gi}_ap_${oi}_s" style="width:20px;height:20px;border:2px solid ${chk?'var(--accent)':'var(--border)'};background:${chk?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;">${chk?'✓':''}</span>
+            <input type="checkbox" id="pn_${gi}_ap_${oi}_s" ${chk?'checked':''} data-drug-id="${id||''}" data-name="${o.name}" style="display:none;">
+            <span style="font-size:13px;flex:1;">${o.name}${o.note?`<span style="font-size:10px;color:var(--muted);">（${o.note}）</span>`:''}</span>
+            <input type="number" id="pn_qty_${gi}_ap_${oi}_s" value="${o.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          </div>`;
+        }).join('')}
+      </div>`;
+    } else if (g.type === 'choice3') {
+      html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${g.label}</div>
+        ${g.options.map((o, oi) => {
+          const id = findDrugIdByName(o.name);
+          return `<div onclick="togglePneumoniaChoice(${gi},${oi})" style="display:flex;align-items:center;cursor:pointer;margin-top:4px;">
+            <span id="box_pn_${gi}_c${oi}" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
+            <input type="checkbox" id="pn_${gi}_c${oi}" data-drug-id="${id||''}" data-name="${o.name}" data-choice="${gi}" style="display:none;">
+            <span style="font-size:13px;flex:1;">${o.name}</span>
+            <input type="number" id="pn_qty_${gi}_c${oi}" value="${o.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          </div>`;
+        }).join('')}
+      </div>`;
+    }
+  });
+
+  html += '<div style="font-size:10px;color:var(--muted);margin-top:8px;">※チェックした薬が下の「使用薬品」に追加されます</div></div>';
+  wrap.innerHTML = html;
+  wrap.style.display = '';
+  updatePneumoniaAntipyretic();
+}
+
+function selectPneumoniaPattern(idx) {
+  pneumoniaPatternIdx = idx;
+  renderPneumoniaPreset();
+}
+
+function setBox(boxId, on, shape) {
+  const box = document.getElementById(boxId);
+  if (!box) return;
+  if (on) {
+    box.style.borderColor = 'var(--accent)';
+    box.style.background = 'var(--accent)';
+    box.textContent = shape === 'radio' ? '●' : '✓';
+  } else {
+    box.style.borderColor = 'var(--border)';
+    box.style.background = 'transparent';
+    box.textContent = '';
+  }
+}
+
+function togglePneumoniaPair(gi, side) {
+  const other = side === 'a' ? 'b' : 'a';
+  const chk = document.getElementById(`pn_${gi}_${side}`);
+  const chkOther = document.getElementById(`pn_${gi}_${other}`);
+  chk.checked = !chk.checked;
+  if (chk.checked && chkOther) chkOther.checked = false;
+  setBox(`box_pn_${gi}_${side}`, chk.checked, 'radio');
+  setBox(`box_pn_${gi}_${other}`, false, 'radio');
+  updatePneumoniaAntipyretic();
+}
+
+function togglePneumoniaSingle(gi) {
+  const chk = document.getElementById(`pn_${gi}_s`);
+  if (!chk) return;
+  chk.checked = !chk.checked;
+  setBox(`box_pn_${gi}_s`, chk.checked, 'check');
+}
+
+function togglePneumoniaChoice(gi, oi) {
+  // 3択：1つだけ選択
+  const pat = PNEUMONIA_DRUG_PRESET.patterns[pneumoniaPatternIdx];
+  const g = pat.groups[gi];
+  const chk = document.getElementById(`pn_${gi}_c${oi}`);
+  const wasChecked = chk.checked;
+  g.options.forEach((_, i) => {
+    const c = document.getElementById(`pn_${gi}_c${i}`);
+    if (c) { c.checked = false; setBox(`box_pn_${gi}_c${i}`, false, 'radio'); }
+  });
+  if (!wasChecked) { chk.checked = true; setBox(`box_pn_${gi}_c${oi}`, true, 'radio'); }
+}
+
+// ニューフロール（ペアb）が選択されたら解熱剤グループを表示
+function updatePneumoniaAntipyretic() {
+  const pat = PNEUMONIA_DRUG_PRESET.patterns[pneumoniaPatternIdx];
+  pat.groups.forEach((g, gi) => {
+    if (g.type !== 'antipyretic') return;
+    const apEl = document.getElementById(`pn_antipyretic_${gi}`);
+    if (!apEl) return;
+    // showWhenB: 指定インデックスのペアのbが選択されているか
+    const pairIdx = g.showWhenB;
+    const bChk = document.getElementById(`pn_${pairIdx}_b`);
+    apEl.style.display = (bChk && bChk.checked) ? '' : 'none';
+  });
+}
+
+function applyPneumoniaPreset() {
+  const wrap = document.getElementById('treat-drug-preset');
+  const selected = [];
+  wrap.querySelectorAll('input[type="checkbox"][id^="pn_"]').forEach(chk => {
+    if (!chk.checked || !chk.dataset.drugId) return;
+    // 対応するqty入力を探す（id: pn_XXX → pn_qty_XXX）
+    const qtyId = chk.id.replace('pn_', 'pn_qty_');
+    const qty = parseFloat(document.getElementById(qtyId)?.value) || 0;
+    // 解熱剤グループが非表示の場合はスキップ
+    const parent = chk.closest('[id^="pn_antipyretic_"]');
+    if (parent && parent.style.display === 'none') return;
+    if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
   });
   return selected;
 }
@@ -2296,6 +2585,73 @@ function saveOkiGusuri() {
       farmer, memo: memo || '',
     }
   }).then(() => closeModal('modal-okigusuri'));
+}
+
+// ===== 廃棄処分 =====
+let disposeDrugId = null;
+function openDispose(drugId) {
+  disposeDrugId = drugId;
+  const d = drugs[drugId];
+  if (!d) return;
+  document.getElementById('dispose-drug-name').textContent = d.name;
+  document.getElementById('dispose-stock-info').textContent = `現在庫: ${fmtStock(drugId)}`;
+  document.getElementById('dispose-date').value = today();
+  document.getElementById('dispose-memo').value = '';
+  document.getElementById('dispose-unit').textContent = d.unit || '';
+  document.getElementById('dispose-reason').value = 'expired';
+  document.getElementById('dispose-qty').value = 0;
+  onDisposeReasonChange();
+  closeModal('modal-stock-detail');
+  openModal('modal-dispose');
+}
+
+function onDisposeReasonChange() {
+  const reason = document.getElementById('dispose-reason').value;
+  const d = drugs[disposeDrugId];
+  const openedInfo = document.getElementById('dispose-opened-info');
+  const qtyLabel = document.getElementById('dispose-qty-label');
+  const qtyInput = document.getElementById('dispose-qty');
+  if (reason === 'opened') {
+    // 開封中の瓶の残量を自動入力
+    const rem = openBottleRemainder(disposeDrugId);
+    if (d && d.stockType === 'ml' && d.volume > 0) {
+      if (rem > 0) {
+        openedInfo.style.display = '';
+        openedInfo.textContent = `開封中の瓶の残量 ${rem}${d.unit||'ml'} を廃棄します（1本${d.volume}${d.unit||'ml'}）`;
+        qtyInput.value = rem;
+      } else {
+        openedInfo.style.display = '';
+        openedInfo.textContent = '開封中の瓶がありません（在庫は本数ちょうどです）';
+        qtyInput.value = 0;
+      }
+    } else {
+      openedInfo.style.display = '';
+      openedInfo.textContent = 'この薬品は容量（1瓶のml）が未設定のため自動計算できません。手動入力してください。';
+    }
+    qtyLabel.textContent = '廃棄量（自動）';
+  } else {
+    openedInfo.style.display = 'none';
+    qtyLabel.textContent = '廃棄量';
+    qtyInput.value = 0;
+  }
+}
+
+function saveDispose() {
+  const drugId = disposeDrugId;
+  const qty = parseFloat(document.getElementById('dispose-qty').value) || 0;
+  const date = document.getElementById('dispose-date').value;
+  const reason = document.getElementById('dispose-reason').value;
+  const memo = document.getElementById('dispose-memo').value;
+  if (!drugId) return;
+  if (qty <= 0) { alert('廃棄量を入力してください'); return; }
+  const reasonLabel = {'expired':'使用期限切れ','opened':'開封後期限切れ','other':'その他'}[reason] || reason;
+  const movId = 'mov_' + Date.now();
+  saveVet({
+    ['movements/' + movId]: {
+      drugId, type: 'dispose', qty: -qty, date,
+      memo: reasonLabel + (memo ? '／'+memo : ''),
+    }
+  }).then(() => closeModal('modal-dispose'));
 }
 
 function onOutcomeChange() {
