@@ -572,6 +572,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
         <option value="その他">その他</option>
       </select>
     </div>
+    <div class="form-group" id="drug-volume-wrap" style="display:none;">
+      <label>1本(1瓶)の容量</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="drug-volume" min="0" step="0.1" placeholder="例: 100" style="flex:1;">
+        <span id="drug-volume-unit" style="color:var(--muted);font-size:13px;">ml</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">入庫時に「本数×容量」で在庫mlを自動計算します</div>
+    </div>
     <div class="form-group">
       <label>食肉休薬期間（日）</label>
       <input type="number" id="drug-wd-meat" min="0" value="0" placeholder="0=なし">
@@ -943,7 +951,7 @@ function renderStockList(q = '') {
       </div>
       <div style="text-align:right;">
         <div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}">${d.stock}</div>
-        <div class="stock-unit">${d.unit || ''}</div>
+        <div class="stock-unit">${d.unit || ''}${d.stockType==='ml'&&d.volume>0?`<br>約${(d.stock/d.volume).toFixed(1)}本`:''}</div>
         ${badge}
       </div>
     </div>`;
@@ -1316,7 +1324,9 @@ function updateStockInUnit() {
   const drugId = document.getElementById('stockin-drug-id').value;
   const qtyLabel = document.getElementById('stockin-qty-label');
   const partialWrap = document.getElementById('stockin-partial-wrap');
+  const mode = document.getElementById('stockin-mode-in')?.dataset?.mode || 'in';
   if (!qtyLabel) return;
+  if (mode === 'count') { qtyLabel.textContent = '現在の残量'; return; }
   if (!drugId || !drugs[drugId]) {
     qtyLabel.textContent = '数量';
     if (partialWrap) partialWrap.style.display = 'none';
@@ -1324,7 +1334,11 @@ function updateStockInUnit() {
   }
   const d = drugs[drugId];
   if (d.stockType === 'ml') {
-    qtyLabel.textContent = `入庫量（${d.unit||'ml'}）`;
+    if (d.volume > 0) {
+      qtyLabel.textContent = `入庫本数（1本${d.volume}${d.unit||'ml'}）`;
+    } else {
+      qtyLabel.textContent = `入庫量（${d.unit||'ml'}）`;
+    }
     if (partialWrap) partialWrap.style.display = '';
   } else {
     qtyLabel.textContent = `入庫本数`;
@@ -1356,9 +1370,17 @@ function saveStockIn() {
     };
   } else {
     // 通常入庫
+    const d = drugs[drugId];
+    // ml管理で容量設定ありの場合は本数×容量でml換算
+    let actualQty = qty;
+    let memoText = memo || '新品入庫';
+    if (d && d.stockType === 'ml' && d.volume > 0) {
+      actualQty = qty * d.volume;
+      memoText = `${qty}本×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
+    }
     if (qty > 0) {
       const movId = 'mov_' + Date.now();
-      updates['movements/' + movId] = { drugId, type: 'in', qty, date, memo: memo || '新品入庫' };
+      updates['movements/' + movId] = { drugId, type: 'in', qty: actualQty, date, memo: memoText };
     }
     if (partial > 0) {
       const movId2 = 'mov_' + (Date.now()+1);
@@ -1376,8 +1398,13 @@ function saveStockIn() {
 function onStockTypeChange() {
   const type = document.getElementById('drug-stock-type').value;
   const unitEl = document.getElementById('drug-unit');
+  const volWrap = document.getElementById('drug-volume-wrap');
   if (type === 'ml' && !unitEl.value) unitEl.value = 'ml';
   if (type === 'count' && !unitEl.value) unitEl.value = '本';
+  // ml管理のときだけ容量欄を表示
+  if (volWrap) volWrap.style.display = type === 'ml' ? '' : 'none';
+  const volUnit = document.getElementById('drug-volume-unit');
+  if (volUnit) volUnit.textContent = unitEl.value || 'ml';
 }
 
 function clearDrugForm() {
@@ -1386,6 +1413,8 @@ function clearDrugForm() {
   document.getElementById('drug-name').value = '';
   document.getElementById('drug-category').value = 'ホルモン剤';
   document.getElementById('drug-stock-type').value = 'count';
+  document.getElementById('drug-volume').value = '';
+  document.getElementById('drug-volume-wrap').style.display = 'none';
   document.getElementById('drug-wd-meat').value = '0';
   document.getElementById('drug-wd-milk').value = '0';
   document.getElementById('drug-unit').value = '';
@@ -1402,11 +1431,16 @@ function editDrug(drugId) {
   document.getElementById('drug-name').value = d.name || '';
   document.getElementById('drug-category').value = d.category || 'その他';
   document.getElementById('drug-stock-type').value = d.stockType || 'count';
+  document.getElementById('drug-wd-meat').value = d.wdMeat || 0;
   document.getElementById('drug-wd-milk').value = d.wdMilk || 0;
   document.getElementById('drug-unit').value = d.unit || '';
+  document.getElementById('drug-volume').value = d.volume || '';
   document.getElementById('drug-threshold').value = d.threshold || 0;
   document.getElementById('drug-usage').value = d.usage || '';
   document.getElementById('drug-delete-btn').style.display = 'inline-block';
+  // ml管理なら容量欄を表示
+  document.getElementById('drug-volume-wrap').style.display = (d.stockType === 'ml') ? '' : 'none';
+  document.getElementById('drug-volume-unit').textContent = d.unit || 'ml';
   openModal('modal-drug-edit');
 }
 
@@ -1419,8 +1453,10 @@ function saveDrug() {
     name,
     category: document.getElementById('drug-category').value,
     stockType: document.getElementById('drug-stock-type').value || 'count',
+    wdMeat: parseInt(document.getElementById('drug-wd-meat').value) || 0,
     wdMilk: parseInt(document.getElementById('drug-wd-milk').value) || 0,
     unit: document.getElementById('drug-unit').value.trim(),
+    volume: parseFloat(document.getElementById('drug-volume').value) || 0,
     threshold: parseInt(document.getElementById('drug-threshold').value) || 0,
     usage: document.getElementById('drug-usage').value.trim(),
   };
@@ -1662,7 +1698,7 @@ function loadDrugPreset(diseaseCode) {
           const drugId = findDrugIdByName(b);
           const d = drugId ? drugs[drugId] : null;
           return `<div style="display:flex;align-items:center;padding:4px 0;">
-            <div onclick="toggleDrugPreset('dp_base_${i}')" style="display:flex;align-items:center;cursor:pointer;flex:1;">
+            <div onclick="toggleDripBase('dp_base_${i}')" style="display:flex;align-items:center;cursor:pointer;flex:1;">
               <span id="box_dp_base_${i}" style="width:18px;height:18px;border:2px solid var(--border);background:transparent;border-radius:4px;margin-right:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:12px;"></span>
               <input type="checkbox" id="dp_base_${i}" data-drug-id="${drugId||''}" data-name="${b}" style="display:none;">
               <span style="font-size:12px;flex:1;">${b}</span>
@@ -1716,6 +1752,31 @@ function toggleDrip() {
   const chk = document.getElementById('dp_drip');
   const detail = document.getElementById('drip-detail');
   if (detail) detail.style.display = chk.checked ? '' : 'none';
+}
+
+// 点滴基剤をチェックしたら混注薬に自動チェック
+function toggleDripBase(chkId) {
+  toggleDrugPreset(chkId);
+  // いずれかの基剤がチェックされているか確認
+  const wrap = document.getElementById('treat-drug-preset');
+  const anyBaseChecked = Array.from(wrap.querySelectorAll('input[id^="dp_base_"]:not([id*="qty"])'))
+    .some(c => c.checked);
+  // 混注薬を一括でON/OFF
+  wrap.querySelectorAll('input[id^="dp_add_"]:not([id*="qty"])').forEach(addChk => {
+    const box = document.getElementById('box_' + addChk.id);
+    if (!box) return;
+    if (anyBaseChecked && !addChk.checked) {
+      addChk.checked = true;
+      box.style.borderColor = 'var(--accent)';
+      box.style.background = 'var(--accent)';
+      box.textContent = '✓';
+    } else if (!anyBaseChecked && addChk.checked) {
+      addChk.checked = false;
+      box.style.borderColor = 'var(--border)';
+      box.style.background = 'transparent';
+      box.textContent = '';
+    }
+  });
 }
 
 // 薬品プリセットのチェック内容を使用薬品リストに反映
