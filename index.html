@@ -559,7 +559,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       </div>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">新品とは別に残量だけ追加入庫されます</div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="stockin-date-wrap">
       <label>入庫日</label>
       <input type="date" id="stockin-date">
     </div>
@@ -1366,16 +1366,19 @@ function setStockInMode(mode) {
   const btnIn = document.getElementById('stockin-mode-in');
   const btnCount = document.getElementById('stockin-mode-count');
   document.getElementById('stockin-mode-in').dataset.mode = mode;
+  const dateWrap = document.getElementById('stockin-date-wrap');
   if (mode === 'count') {
     descEl.textContent = '今現在の残量を入力します（過去の入出庫は無視して現在の数量として登録）';
     descEl.style.color = 'var(--warn)';
     btnIn.style.background = 'var(--bg3)'; btnIn.style.color = 'var(--text)';
     btnCount.style.background = 'var(--warn)'; btnCount.style.color = '#000';
+    if (dateWrap) dateWrap.style.display = 'none';
   } else {
     descEl.textContent = '新しく仕入れた分を追加します';
     descEl.style.color = 'var(--muted)';
     btnIn.style.background = 'var(--accent)'; btnIn.style.color = '#000';
     btnCount.style.background = 'var(--bg3)'; btnCount.style.color = 'var(--text)';
+    if (dateWrap) dateWrap.style.display = '';
   }
   updateStockInUnit();
 }
@@ -1433,10 +1436,10 @@ function updateStockInUnit() {
 function saveStockIn() {
   const drugId = document.getElementById('stockin-drug-id').value;
   const qty = parseFloat(document.getElementById('stockin-qty').value) || 0;
-  const date = document.getElementById('stockin-date').value;
   const memo = document.getElementById('stockin-memo').value;
   const partial = parseFloat(document.getElementById('stockin-partial')?.value) || 0;
   const mode = document.getElementById('stockin-mode-in')?.dataset?.mode || 'in';
+  const date = mode === 'count' ? today() : (document.getElementById('stockin-date').value || today());
   if (!drugId) { alert('薬品を選択してください'); return; }
   if (qty <= 0 && partial <= 0) { alert('数量を入力してください'); return; }
 
