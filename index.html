@@ -1380,16 +1380,31 @@ function setStockInMode(mode) {
 function updateStockInUnit() {
   const drugId = document.getElementById('stockin-drug-id').value;
   const qtyLabel = document.getElementById('stockin-qty-label');
+  const qtyInput = document.getElementById('stockin-qty');
   const partialWrap = document.getElementById('stockin-partial-wrap');
   const mode = document.getElementById('stockin-mode-in')?.dataset?.mode || 'in';
   if (!qtyLabel) return;
-  if (mode === 'count') { qtyLabel.textContent = '現在の残量'; return; }
-  if (!drugId || !drugs[drugId]) {
+  const d = drugId && drugs[drugId] ? drugs[drugId] : null;
+  // 棚卸しモード
+  if (mode === 'count') {
+    if (qtyInput) qtyInput.step = '1'; // 本数入力なので整数
+    if (d && d.stockType === 'ml' && d.volume > 0) {
+      qtyLabel.textContent = `現在の未開封本数（1本${d.volume}${d.unit||'ml'}）`;
+    } else if (d && d.stockType === 'ml') {
+      qtyLabel.textContent = `現在の残量（${d.unit||'ml'}）`;
+      if (qtyInput) qtyInput.step = '0.1';
+    } else {
+      qtyLabel.textContent = '現在の残量（本数）';
+    }
+    return;
+  }
+  if (!d) {
     qtyLabel.textContent = '数量';
     if (partialWrap) partialWrap.style.display = 'none';
     return;
   }
-  const d = drugs[drugId];
+  // 入庫は箱・本なので整数
+  if (qtyInput) qtyInput.step = '1';
   if (d.perBox > 0) {
     // 箱入力
     if (d.stockType === 'ml' && d.volume > 0) {
@@ -1403,6 +1418,7 @@ function updateStockInUnit() {
       qtyLabel.textContent = `入庫本数（1本${d.volume}${d.unit||'ml'}）`;
     } else {
       qtyLabel.textContent = `入庫量（${d.unit||'ml'}）`;
+      if (qtyInput) qtyInput.step = '0.1'; // 容量未設定のml薬は直接ml入力なので小数OK
     }
     if (partialWrap) partialWrap.style.display = '';
   } else {
@@ -1424,14 +1440,21 @@ function saveStockIn() {
   const updates = {};
 
   if (mode === 'count') {
-    // 棚卸し：現在の在庫との差分を調整レコードとして登録
+    // 棚卸し：本数入力→ml換算（容量設定ありの場合）
+    const d = drugs[drugId];
+    let targetStock = qty;
+    let inputDesc = `${qty}`;
+    if (d && d.stockType === 'ml' && d.volume > 0) {
+      targetStock = qty * d.volume;
+      inputDesc = `${qty}本(${targetStock}${d.unit||'ml'})`;
+    }
     const currentStock = calcStock(drugId);
-    const diff = qty - currentStock;
+    const diff = targetStock - currentStock;
     if (diff === 0) { alert('現在の在庫数と同じです'); return; }
     const movId = 'mov_' + Date.now();
     updates['movements/' + movId] = {
       drugId, type: 'adjust', qty: diff, date,
-      memo: `棚卸し（調整前:${currentStock}→調整後:${qty}）`
+      memo: `棚卸し（→${inputDesc}）`
     };
   } else {
     // 通常入庫
