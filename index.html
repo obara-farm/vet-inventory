@@ -226,7 +226,6 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   <div class="section-header">
     <div class="section-title">在庫一覧</div>
     <div style="display:flex;gap:6px;">
-      <button class="btn btn-secondary btn-sm" onclick="openOkiGusuri()" style="border-color:var(--warn);color:var(--warn);">🚜 置き薬</button>
       <button class="btn btn-primary btn-sm" onclick="openModal('modal-stock-in')">＋ 入庫</button>
     </div>
   </div>
@@ -429,8 +428,11 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
 <div class="modal-overlay" id="modal-farm-treat">
   <div class="modal" style="max-width:min(98vw,520px);">
     <div class="modal-title">
-      🏡 農場処置（複数頭一括）
+      🏡 農場処置・往診
       <button class="modal-close" onclick="closeModal('modal-farm-treat')">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:12px;background:var(--bg3);padding:8px 10px;border-radius:8px;">
+      診察した牛を個別カルテに記録します。群全体に薬を置いていく場合は「置き薬」欄に入力すると代表牛のカルテに交付記録が残ります。
     </div>
     <div class="form-group">
       <label>農場名</label>
@@ -447,7 +449,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <input type="date" id="farm-treat-date">
     </div>
     <div class="form-group">
-      <label>対象牛（複数選択可）</label>
+      <label>診察牛（1頭以上・置き薬のみなら代表牛1頭）</label>
       <input type="text" id="farm-cow-search" placeholder="耳標・名前・識別番号で検索..." oninput="onFarmCowSearch(this.value)" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;">
       <div id="farm-cow-suggestions" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;margin-top:4px;display:none;max-height:180px;overflow-y:auto;"></div>
       <div id="farm-cow-selected-list" style="margin-top:8px;"></div>
@@ -477,11 +479,22 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <textarea id="farm-findings" rows="2" placeholder="現症、処置内容など" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;resize:vertical;"></textarea>
     </div>
     <div class="form-group">
-      <label>使用薬品（1頭あたりの量）</label>
+      <label>診察牛への使用薬品（1頭あたりの量）</label>
       <div id="farm-drug-rows"></div>
       <button class="btn btn-secondary btn-sm mt8" onclick="addFarmDrugRow()">＋ 薬品を追加</button>
     </div>
     <div id="farm-wd-preview" style="background:#3d2800;border:1px solid var(--warn);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:12px;display:none;"></div>
+    <!-- 置き薬（群全体用） -->
+    <div class="form-group" style="border-top:2px solid var(--warn);padding-top:12px;">
+      <label style="color:var(--warn);">🚜 置き薬（群全体用にまとめて交付）</label>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">診察牛の診断に基づき、農場に置いていく薬。カルテに交付記録が残ります。</div>
+      <div id="farm-oki-rows"></div>
+      <button class="btn btn-secondary btn-sm mt8" onclick="addFarmOkiRow()" style="border-color:var(--warn);color:var(--warn);">＋ 置き薬を追加</button>
+    </div>
+    <div class="form-group" id="farm-oki-count-wrap" style="display:none;">
+      <label>置き薬の対象頭数の目安</label>
+      <input type="text" id="farm-oki-count" placeholder="例: 子牛約10頭分" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+    </div>
     <div class="form-group">
       <label>備考</label>
       <textarea id="farm-memo" rows="2" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;resize:vertical;"></textarea>
@@ -1067,7 +1080,7 @@ function renderDrugList(q = '') {
         <div class="list-item" onclick="editDrug('${d.id}')">
           <div class="list-item-main">
             <div class="list-item-name">${d.name}</div>
-            <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1本${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}本`:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilk>0?' 搾乳'+d.wdMilk+'日':''}</div>
+            <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1V${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}V`:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilk>0?' 搾乳'+d.wdMilk+'日':''}</div>
           </div>
           <div style="color:var(--muted);font-size:18px;">›</div>
         </div>`).join('')}
@@ -1082,7 +1095,7 @@ function renderDrugList(q = '') {
           <div class="list-item" onclick="editDrug('${d.id}')">
             <div class="list-item-main">
               <div class="list-item-name">${d.name}</div>
-              <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1本${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}本`:''}</div>
+              <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1V${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}V`:''}</div>
             </div>
             <div style="color:var(--muted);font-size:18px;">›</div>
           </div>`).join('')}
@@ -1413,7 +1426,7 @@ function updateStockInUnit() {
   if (mode === 'count') {
     if (qtyInput) qtyInput.step = '1'; // 本数入力なので整数
     if (d && d.stockType === 'ml' && d.volume > 0) {
-      qtyLabel.textContent = `現在の未開封本数（1本${d.volume}${d.unit||'ml'}）`;
+      qtyLabel.textContent = `現在の未開封本数（1V${d.volume}${d.unit||'ml'}）`;
     } else if (d && d.stockType === 'ml') {
       qtyLabel.textContent = `現在の残量（${d.unit||'ml'}）`;
       if (qtyInput) qtyInput.step = '0.1';
@@ -1432,14 +1445,14 @@ function updateStockInUnit() {
   if (d.perBox > 0) {
     // 箱入力
     if (d.stockType === 'ml' && d.volume > 0) {
-      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}本×${d.volume}${d.unit||'ml'}）`;
+      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}V×${d.volume}${d.unit||'ml'}）`;
     } else {
-      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}本）`;
+      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}V）`;
     }
     if (partialWrap) partialWrap.style.display = d.stockType === 'ml' ? '' : 'none';
   } else if (d.stockType === 'ml') {
     if (d.volume > 0) {
-      qtyLabel.textContent = `入庫本数（1本${d.volume}${d.unit||'ml'}）`;
+      qtyLabel.textContent = `入庫本数（1V${d.volume}${d.unit||'ml'}）`;
     } else {
       qtyLabel.textContent = `入庫量（${d.unit||'ml'}）`;
       if (qtyInput) qtyInput.step = '0.1'; // 容量未設定のml薬は直接ml入力なので小数OK
@@ -1470,7 +1483,7 @@ function saveStockIn() {
     let inputDesc = `${qty}`;
     if (d && d.stockType === 'ml' && d.volume > 0) {
       targetStock = qty * d.volume;
-      inputDesc = `${qty}本(${targetStock}${d.unit||'ml'})`;
+      inputDesc = `${qty}V(${targetStock}${d.unit||'ml'})`;
     }
     const currentStock = calcStock(drugId);
     const diff = targetStock - currentStock;
@@ -1490,15 +1503,15 @@ function saveStockIn() {
       const bottles = qty * d.perBox;
       if (d.stockType === 'ml' && d.volume > 0) {
         actualQty = bottles * d.volume;
-        memoText = `${qty}箱×${d.perBox}本×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
+        memoText = `${qty}箱×${d.perBox}V×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
       } else {
         actualQty = bottles;
-        memoText = `${qty}箱×${d.perBox}本=${bottles}本` + (memo ? '／'+memo : '');
+        memoText = `${qty}箱×${d.perBox}V=${bottles}V` + (memo ? '／'+memo : '');
       }
     } else if (d && d.stockType === 'ml' && d.volume > 0) {
       // 本数入力（ml換算）
       actualQty = qty * d.volume;
-      memoText = `${qty}本×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
+      memoText = `${qty}V×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
     }
     if (qty > 0) {
       const movId = 'mov_' + Date.now();
@@ -1600,14 +1613,14 @@ function deleteDrug() {
 }
 
 // ===== 在庫詳細 =====
-// 薬品の投与量を表示（本数管理で容量ありなら「2本(4ml)」形式）
+// 薬品の投与量を表示（本数管理で容量ありなら「2V(4ml)」形式）
 function fmtDrugQty(drugId, qty) {
   const d = drugs[drugId];
   if (!d) return `${qty}`;
   const unit = d.unit || '';
   if (d.stockType === 'count' && d.volume > 0) {
     const ml = Math.round(qty * d.volume * 10) / 10;
-    return `${qty}${unit}(${ml}ml)`;
+    return `${qty}V(${ml}ml)`;
   }
   return `${qty}${unit}`;
 }
@@ -1620,8 +1633,8 @@ function fmtStock(drugId) {
   if (d && d.stockType === 'ml' && d.volume > 0) {
     const bottles = Math.floor(stock / d.volume);
     const rem = Math.round((stock - bottles * d.volume) * 10) / 10;
-    if (bottles > 0 && rem > 0) return `${bottles}本と${rem}${unit}`;
-    if (bottles > 0 && rem === 0) return `${bottles}本`;
+    if (bottles > 0 && rem > 0) return `${bottles}Vと${rem}${unit}`;
+    if (bottles > 0 && rem === 0) return `${bottles}V`;
     return `${rem}${unit}`;
   }
   return `${stock}${unit}`;
@@ -2419,6 +2432,9 @@ function openFarmTreat() {
   document.getElementById('farm-wd-preview').style.display = 'none';
   document.getElementById('farm-summary').style.display = 'none';
   document.getElementById('farm-drug-rows').innerHTML = '';
+  document.getElementById('farm-oki-rows').innerHTML = '';
+  document.getElementById('farm-oki-count').value = '';
+  document.getElementById('farm-oki-count-wrap').style.display = 'none';
   // 病名セレクト初期化
   const largeSel = document.getElementById('farm-disease-large');
   const sorted = Object.entries(DISEASE_CATEGORIES).sort((a,b) => a[0].localeCompare(b[0]));
@@ -2544,6 +2560,57 @@ function onFarmDrugRowChange(sel) {
   updateFarmWdPreview();
 }
 
+// 置き薬の行を追加
+function addFarmOkiRow() {
+  const drugOptions = Object.entries(drugs)
+    .sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'','ja'))
+    .map(([id,d]) => `<option value="${id}">${d.name}（${d.unit||''}）</option>`).join('');
+  const row = document.createElement('div');
+  row.className = 'oki-row';
+  row.style.marginBottom = '6px';
+  row.innerHTML = `
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select onchange="onFarmOkiRowChange(this)" style="flex:1;background:var(--bg3);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
+        <option value="">置き薬を選択...</option>${drugOptions}
+      </select>
+      <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--warn);border-radius:8px;background:var(--bg3);padding:0 6px;">
+        <input type="number" min="1" step="1" value="1"
+          style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;">
+        <span class="oki-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
+      <button onclick="this.closest('.oki-row').remove();updateFarmOkiCountVisibility()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>
+    </div>`;
+  document.getElementById('farm-oki-rows').appendChild(row);
+  updateFarmOkiCountVisibility();
+}
+
+function onFarmOkiRowChange(sel) {
+  const row = sel.closest('.oki-row');
+  const unitLabel = row.querySelector('.oki-unit-label');
+  const qtyInput = row.querySelector('input[type="number"]');
+  if (sel.value && drugs[sel.value]) {
+    const d = drugs[sel.value];
+    if (d.stockType === 'ml' && d.volume > 0) {
+      unitLabel.textContent = 'V';
+      qtyInput.step = '1';
+    } else if (d.stockType === 'ml') {
+      unitLabel.textContent = d.unit || 'ml';
+      qtyInput.step = '0.1';
+    } else {
+      unitLabel.textContent = d.unit || '本';
+      qtyInput.step = '1';
+    }
+  } else {
+    unitLabel.textContent = '';
+  }
+}
+
+function updateFarmOkiCountVisibility() {
+  const hasOki = document.querySelectorAll('#farm-oki-rows .oki-row').length > 0;
+  document.getElementById('farm-oki-count-wrap').style.display = hasOki ? '' : 'none';
+}
+
+
 function updateFarmWdPreview() {
   const rows = document.querySelectorAll('#farm-drug-rows .drug-row');
   const dateVal = document.getElementById('farm-treat-date').value;
@@ -2609,7 +2676,18 @@ function saveFarmTreat() {
     const qty = parseFloat(row.querySelector('input')?.value) || 0;
     if (sel?.value && qty > 0) drugList.push({ drugId: sel.value, qty });
   });
-  if (!drugList.length) { alert('薬品を1つ以上選択してください'); return; }
+
+  // 置き薬の収集
+  const okiRows = document.querySelectorAll('#farm-oki-rows .oki-row');
+  const okiList = [];
+  okiRows.forEach(row => {
+    const sel = row.querySelector('select');
+    const qty = parseFloat(row.querySelector('input')?.value) || 0;
+    if (sel?.value && qty > 0) okiList.push({ drugId: sel.value, qty });
+  });
+  const okiCount = document.getElementById('farm-oki-count').value.trim();
+
+  if (!drugList.length && !okiList.length) { alert('診察牛への薬品、または置き薬を1つ以上入力してください'); return; }
 
   // 病名
   const diseaseCode = document.getElementById('farm-disease-code')?.value || '';
@@ -2640,26 +2718,61 @@ function saveFarmTreat() {
 
   const updates = {};
 
+  // 置き薬の交付記録テキスト（代表牛のカルテに記載）
+  let okiNote = '';
+  if (okiList.length) {
+    const okiDesc = okiList.map(o => {
+      const drug = drugs[o.drugId];
+      if (!drug) return '';
+      let disp = `${o.qty}${drug.unit||''}`;
+      if (drug.stockType === 'ml' && drug.volume > 0) disp = `${o.qty}V(${o.qty*drug.volume}${drug.unit||'ml'})`;
+      return `${drug.name} ${disp}`;
+    }).filter(Boolean).join('、');
+    okiNote = `【置き薬交付】${okiDesc}${okiCount ? '（'+okiCount+'）' : ''}`;
+  }
+
   // 牛ごとに処置レコードを作成
-  farmSelectedCows.forEach(c => {
-    const treatId = 'treat_' + Date.now() + '_' + Math.random().toString(36).slice(2,5);
+  farmSelectedCows.forEach((c, idx) => {
+    const treatId = 'treat_' + Date.now() + '_' + Math.random().toString(36).slice(2,5) + idx;
+    // 置き薬の記録は代表牛（1頭目）のカルテにのみ追記
+    const cowMemo = (idx === 0 && okiNote) ? (memo ? memo + '\n' + okiNote : okiNote) : memo;
     updates['treatments/' + treatId] = {
       cowId: c.id, date, farmName,
-      drugs: drugList, memo, complaint, findings, temp, pulse, resp,
+      drugs: drugList, memo: cowMemo, complaint, findings, temp, pulse, resp,
       diseaseCode, diseaseName, diseaseLarge: actualLarge,
       wdMeatEnd, wdMilkEnd,
       outcome: '', outcomeDate: '',
-      batchTreat: true, // 農場処置フラグ
+      batchTreat: true,
+      okiGusuri: (idx === 0 && okiList.length) ? { drugs: okiList, count: okiCount } : null,
     };
-    // 在庫減算（1頭ごと）
+    // 診察牛への使用薬品の在庫減算（1頭ごと）
     drugList.forEach(d => {
-      const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+      const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + idx;
       updates['movements/' + movId] = {
         drugId: d.drugId, type: 'use', qty: -d.qty,
-        date, cowId: c.id, farmName, memo,
+        date, cowId: c.id, farmName, memo: cowMemo,
       };
     });
   });
+
+  // 置き薬の在庫減算（代表牛に紐づけ）
+  if (okiList.length) {
+    const repCow = farmSelectedCows[0];
+    okiList.forEach(o => {
+      const drug = drugs[o.drugId];
+      let actualQty = o.qty;
+      let okiMemo = `置き薬${okiCount ? '（'+okiCount+'）' : ''}`;
+      if (drug && drug.stockType === 'ml' && drug.volume > 0) {
+        actualQty = o.qty * drug.volume;
+        okiMemo = `置き薬 ${o.qty}V(${actualQty}${drug.unit||'ml'})${okiCount ? '（'+okiCount+'）' : ''}`;
+      }
+      const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2,6) + 'oki';
+      updates['movements/' + movId] = {
+        drugId: o.drugId, type: 'dispense', qty: -actualQty,
+        date, farmer: farmName, cowId: repCow.id, memo: okiMemo,
+      };
+    });
+  }
 
   saveVet(updates).then(() => {
     closeModal('modal-farm-treat');
@@ -2693,7 +2806,7 @@ function updateOkiUnit() {
   if (drugId && drugs[drugId]) {
     const d = drugs[drugId];
     if (d.stockType === 'ml' && d.volume > 0) {
-      unitEl.textContent = `本（1本${d.volume}${d.unit||'ml'}）`;
+      unitEl.textContent = `本（1V${d.volume}${d.unit||'ml'}）`;
       qtyLabel.textContent = '出庫本数';
     } else if (d.stockType === 'ml') {
       unitEl.textContent = d.unit || 'ml';
@@ -2723,7 +2836,7 @@ function saveOkiGusuri() {
   let memoText = memo || '';
   if (d && d.stockType === 'ml' && d.volume > 0) {
     actualQty = qty * d.volume;
-    memoText = `${qty}本(${actualQty}${d.unit||'ml'})` + (memo ? '／'+memo : '');
+    memoText = `${qty}V(${actualQty}${d.unit||'ml'})` + (memo ? '／'+memo : '');
   }
   const movId = 'mov_' + Date.now();
   saveVet({
@@ -3112,7 +3225,7 @@ function printKarte() {
       if (!drug) return '';
       const wd = drug.wdMeat > 0 ? String(drug.wdMeat) : '';
       const qtyDisp = (drug.stockType === 'count' && drug.volume > 0)
-        ? `${d.qty}本(${Math.round(d.qty*drug.volume*10)/10}ml)`
+        ? `${d.qty}V(${Math.round(d.qty*drug.volume*10)/10}ml)`
         : `${d.qty||''}`;
       return `<tr>
         <td style="border:1px solid #000;padding:2px 4px;font-size:10px;white-space:nowrap;">${drug.name||''}</td>
