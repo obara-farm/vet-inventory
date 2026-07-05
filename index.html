@@ -1632,14 +1632,16 @@ function openStockDetail(drugId) {
     </div>
     <div style="font-size:12px;margin-bottom:8px;color:var(--muted);">入出庫履歴（最新20件）</div>
     ${movList.length ? movList.map(m => `
-      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
-        <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;">
+        <div style="flex:1;">
           <span style="color:${m.qty > 0 ? 'var(--accent)' : 'var(--danger)'};">${m.qty > 0 ? '＋' : ''}${m.qty}${unit}</span>
           <span style="color:var(--muted);margin-left:8px;">${{'in':'入庫','use':'使用','dispense':'置き薬','dispose':'廃棄','adjust':'調整'}[m.type]||m.type}</span>
           ${m.farmer ? `<span style="color:var(--warn);margin-left:4px;">→${m.farmer}</span>` : ''}
           ${m.cowId ? `<span style="color:var(--info);margin-left:4px;">${cowName(m.cowId)}</span>` : ''}
+          ${m.memo ? `<div style="color:var(--muted);font-size:10px;">${m.memo}</div>` : ''}
         </div>
-        <div style="color:var(--muted);">${fmtDate(m.date)}</div>
+        <div style="color:var(--muted);white-space:nowrap;margin:0 6px;">${fmtDate(m.date)}</div>
+        <button onclick="deleteMovement('${m.id}','${drugId}')" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:3px 7px;cursor:pointer;font-size:12px;flex-shrink:0;">✕</button>
       </div>`).join('') : '<p class="text-muted" style="text-align:center;padding:12px;">履歴なし</p>'}
     <div style="margin-top:12px;display:flex;gap:8px;">
       <button class="btn btn-primary btn-sm" onclick="closeModal('modal-stock-detail');openStockInFor('${drugId}');" style="flex:1;">＋ 入庫</button>
@@ -1647,6 +1649,21 @@ function openStockDetail(drugId) {
     </div>
     <button class="btn btn-secondary btn-sm mt8" onclick="openDispose('${drugId}')" style="width:100%;border-color:var(--danger);color:var(--danger);">🗑 廃棄処分</button>`;
   openModal('modal-stock-detail');
+}
+
+// 在庫記録を削除
+function deleteMovement(movId, drugId) {
+  const m = movements[movId];
+  if (!m) return;
+  const typeLabel = {'in':'入庫','use':'使用','dispense':'置き薬','dispose':'廃棄','adjust':'調整'}[m.type] || m.type;
+  let msg = `この${typeLabel}記録（${m.qty>0?'＋':''}${m.qty}）を取り消しますか？\n在庫が${m.qty>0?'減り':'戻り'}ます。`;
+  if (m.treatId || m.cowId) {
+    msg += '\n\n⚠️ この記録は処置（カルテ）と連動しています。取り消しても処置記録自体は残ります。在庫だけ元に戻したい場合のみ実行してください。';
+  }
+  if (!confirm(msg)) return;
+  saveVet({ ['movements/' + movId]: null }).then(() => {
+    openStockDetail(drugId); // 再描画
+  });
 }
 
 // ===== 処置詳細 =====
