@@ -997,7 +997,7 @@ function renderStockList(q = '') {
     return `<div class="list-item" onclick="openStockDetail('${d.id}')">
       <div class="list-item-main">
         <div class="list-item-name">${d.name}</div>
-        <div class="list-item-sub">${d.wdMeat > 0 ? `食肉${d.wdMeat}日` : ''} ${d.wdMilk > 0 ? `搾乳${d.wdMilk}日` : ''}</div>
+        <div class="list-item-sub">${d.volume > 0 ? `1本${d.volume}${d.unit || 'ml'}` : ''}${d.volume > 0 && (d.wdMeat > 0 || d.wdMilk > 0) ? '｜' : ''}${d.wdMeat > 0 ? `食肉${d.wdMeat}日 ` : ''}${d.wdMilk > 0 ? `搾乳${d.wdMilk}日` : ''}</div>
       </div>
       <div style="text-align:right;">
         ${d.stockType==='ml'&&d.volume>0
@@ -1067,7 +1067,7 @@ function renderDrugList(q = '') {
         <div class="list-item" onclick="editDrug('${d.id}')">
           <div class="list-item-main">
             <div class="list-item-name">${d.name}</div>
-            <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilk>0?' 搾乳'+d.wdMilk+'日':''}</div>
+            <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1本${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}本`:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilk>0?' 搾乳'+d.wdMilk+'日':''}</div>
           </div>
           <div style="color:var(--muted);font-size:18px;">›</div>
         </div>`).join('')}
@@ -1082,7 +1082,7 @@ function renderDrugList(q = '') {
           <div class="list-item" onclick="editDrug('${d.id}')">
             <div class="list-item-main">
               <div class="list-item-name">${d.name}</div>
-              <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}</div>
+              <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1本${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}本`:''}</div>
             </div>
             <div style="color:var(--muted);font-size:18px;">›</div>
           </div>`).join('')}
