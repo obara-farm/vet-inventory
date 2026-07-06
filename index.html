@@ -811,6 +811,18 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <input type="number" id="drug-wd-milk-h" min="0" value="0" placeholder="0=なし（時間で入力）">
     </div>
     <div class="form-group">
+      <label>形態（在庫の数え方・表示）</label>
+      <select id="drug-form" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;">
+        <option value="vial">バイアル（V／ml）</option>
+        <option value="ampoule">アンプル（箱／A）</option>
+        <option value="drip">点滴（本／ml）</option>
+        <option value="sachet">散剤・袋（袋）</option>
+        <option value="powder">粉包（箱／包）</option>
+        <option value="">その他（単位を自由入力）</option>
+      </select>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">バイアル/点滴=1本の容量(ml)、アンプル=1箱のA数＋1Aの容量、粉包=1箱の包数を下に設定</div>
+    </div>
+    <div class="form-group">
       <label>在庫管理方法</label>
       <select id="drug-stock-type" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;" onchange="onStockTypeChange()">
         <option value="count">本数管理（アンプル等）</option>
@@ -1204,15 +1216,22 @@ function renderStockList(q = '') {
     const badge = isOut ? '<span class="list-item-badge badge-out">在庫切れ</span>' :
                   isLow ? '<span class="list-item-badge badge-low">要発注</span>' :
                           '<span class="list-item-badge badge-ok">在庫あり</span>';
+    const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+    // サブ情報（1本/1Aの容量など）
+    let subCap = '';
+    if (form === 'vial' && d.volume > 0) subCap = `1V${d.volume}ml`;
+    else if (form === 'drip' && d.volume > 0) subCap = `1本${d.volume}ml`;
+    else if (form === 'ampoule') subCap = `1箱${d.perBox||'?'}A${d.volume>0?`・1A${d.volume}ml`:''}`;
+    else if (form === 'powder') subCap = `1箱${d.perBox||'?'}包`;
+    const wdInfo = `${d.wdMeat > 0 ? `食肉${d.wdMeat}日 ` : ''}${d.wdMilkH > 0 ? `搾乳${d.wdMilkH}時間` : ''}`;
+    const stockDisp = fmtStockForm(d, d.stock);
     return `<div class="list-item" onclick="openStockDetail('${d.id}')">
       <div class="list-item-main">
         <div class="list-item-name">${d.name}${d.regulation&&d.regulation.doku?'<span style="color:#e74c3c;font-weight:700;font-size:11px;margin-left:6px;border:1.5px solid #e74c3c;border-radius:50%;padding:0 3px;">毒</span>':d.regulation&&d.regulation.geki?'<span style="color:#e74c3c;font-weight:700;font-size:11px;margin-left:6px;border:1.5px solid #e74c3c;border-radius:50%;padding:0 3px;">劇</span>':''}</div>
-        <div class="list-item-sub">${d.volume > 0 ? `1本${d.volume}${d.unit || 'ml'}` : ''}${d.volume > 0 && (d.wdMeat > 0 || d.wdMilkH > 0) ? '｜' : ''}${d.wdMeat > 0 ? `食肉${d.wdMeat}日 ` : ''}${d.wdMilkH > 0 ? `搾乳${d.wdMilkH}時間` : ''}</div>
+        <div class="list-item-sub">${subCap}${subCap&&wdInfo?'｜':''}${wdInfo}</div>
       </div>
       <div style="text-align:right;">
-        ${d.stockType==='ml'&&d.volume>0
-          ? `<div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}" style="font-size:15px;">${fmtStock(d.id)}</div><div class="stock-unit">合計${d.stock}${d.unit||''}</div>`
-          : `<div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}">${d.stock}</div><div class="stock-unit">${d.unit || ''}</div>`}
+        <div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}" style="font-size:15px;">${stockDisp}</div>
         ${badge}
       </div>
     </div>`;
@@ -1966,6 +1985,7 @@ function clearDrugForm() {
   document.getElementById('drug-antiinf-system').value = '';
   document.getElementById('drug-expiry').value = '';
   document.getElementById('drug-maker').value = '';
+  document.getElementById('drug-form').value = 'vial';
   document.getElementById('drug-storage').value = '';
   document.getElementById('drug-bacteria').value = '';
   document.getElementById('drug-indication').value = '';
@@ -1997,6 +2017,7 @@ function editDrug(drugId) {
   document.getElementById('drug-antiinf-system').value = d.antiinfSystem || '';
   document.getElementById('drug-expiry').value = d.expiry || '';
   document.getElementById('drug-maker').value = d.maker || '';
+  document.getElementById('drug-form').value = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
   document.getElementById('drug-storage').value = d.storage || '';
   document.getElementById('drug-bacteria').value = d.bacteria || '';
   document.getElementById('drug-indication').value = d.indication || '';
@@ -2038,6 +2059,7 @@ function saveDrug() {
     antiinfSystem: document.getElementById('drug-antiinf-system').value.trim(),
     expiry: document.getElementById('drug-expiry').value.trim(),
     maker: document.getElementById('drug-maker').value.trim(),
+    form: document.getElementById('drug-form').value,
     storage: document.getElementById('drug-storage').value.trim(),
     bacteria: document.getElementById('drug-bacteria').value.trim(),
     indication: document.getElementById('drug-indication').value.trim(),
@@ -2072,6 +2094,52 @@ function fmtDrugQty(drugId, qty, noStock) {
 }
 
 // 在庫を「◯本と◯ml」形式で表示（ml管理で容量ありのとき）
+// 形態別の在庫表示
+// form: vial(V/ml) ampoule(箱/A) drip(本/ml) sachet(袋) powder(箱/包)
+function fmtStockForm(d, stock) {
+  const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+  if (form === 'vial') {
+    const v = Math.floor(stock / d.volume);
+    const rem = Math.round((stock - v * d.volume) * 10) / 10;
+    if (v > 0 && rem > 0) return `${v}Vと${rem}ml`;
+    if (v > 0) return `${v}V`;
+    return `${rem}ml`;
+  }
+  if (form === 'drip') {
+    const v = Math.floor(stock / d.volume);
+    const rem = Math.round((stock - v * d.volume) * 10) / 10;
+    if (v > 0 && rem > 0) return `${v}本と${rem}ml`;
+    if (v > 0) return `${v}本`;
+    return `${rem}ml`;
+  }
+  if (form === 'ampoule') {
+    // stockはA(管)の総数、perBox=1箱のA数
+    const per = d.perBox || 0;
+    if (per > 0) {
+      const box = Math.floor(stock / per);
+      const rem = stock - box * per;
+      if (box > 0 && rem > 0) return `${box}箱と${rem}A`;
+      if (box > 0) return `${box}箱`;
+      return `${rem}A`;
+    }
+    return `${stock}A`;
+  }
+  if (form === 'powder') {
+    // stockは包の総数、perBox=1箱の包数
+    const per = d.perBox || 0;
+    if (per > 0) {
+      const box = Math.floor(stock / per);
+      const rem = stock - box * per;
+      if (box > 0 && rem > 0) return `${box}箱と${rem}包`;
+      if (box > 0) return `${box}箱`;
+      return `${rem}包`;
+    }
+    return `${stock}包`;
+  }
+  if (form === 'sachet') return `${stock}袋`;
+  return `${stock}${d.unit || ''}`;
+}
+
 function fmtStock(drugId) {
   const d = drugs[drugId];
   const stock = calcStock(drugId);
