@@ -821,8 +821,16 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <input type="number" id="drug-threshold" min="0" value="0" placeholder="0=アラートなし">
     </div>
     <div class="form-group">
-      <label>用法・用量メモ</label>
-      <textarea id="drug-usage" placeholder="例: 5ml/頭 筋注"></textarea>
+      <label>有効菌種</label>
+      <textarea id="drug-bacteria" rows="2" placeholder="例: マンヘミア、パスツレラ、マイコプラズマ"></textarea>
+    </div>
+    <div class="form-group">
+      <label>適応症</label>
+      <textarea id="drug-indication" rows="2" placeholder="例: 発熱を伴う細菌性肺炎"></textarea>
+    </div>
+    <div class="form-group">
+      <label>用法・用量メモ（注意点など）</label>
+      <textarea id="drug-usage" placeholder="例: 5ml/頭 筋注、400kg以上は分割"></textarea>
     </div>
     <div style="display:flex;gap:8px;">
       <button class="btn btn-primary" style="flex:1;" onclick="saveDrug()">保存</button>
@@ -1953,6 +1961,8 @@ function clearDrugForm() {
   document.getElementById('drug-antiinf-system').value = '';
   document.getElementById('drug-expiry').value = '';
   document.getElementById('drug-storage').value = '';
+  document.getElementById('drug-bacteria').value = '';
+  document.getElementById('drug-indication').value = '';
   document.getElementById('drug-unit').value = '';
   document.getElementById('drug-threshold').value = '0';
   document.getElementById('drug-usage').value = '';
@@ -1981,6 +1991,8 @@ function editDrug(drugId) {
   document.getElementById('drug-antiinf-system').value = d.antiinfSystem || '';
   document.getElementById('drug-expiry').value = d.expiry || '';
   document.getElementById('drug-storage').value = d.storage || '';
+  document.getElementById('drug-bacteria').value = d.bacteria || '';
+  document.getElementById('drug-indication').value = d.indication || '';
   document.getElementById('drug-unit').value = d.unit || '';
   document.getElementById('drug-volume').value = d.volume || '';
   document.getElementById('drug-perbox').value = d.perBox || '';
@@ -2019,6 +2031,8 @@ function saveDrug() {
     antiinfSystem: document.getElementById('drug-antiinf-system').value.trim(),
     expiry: document.getElementById('drug-expiry').value.trim(),
     storage: document.getElementById('drug-storage').value.trim(),
+    bacteria: document.getElementById('drug-bacteria').value.trim(),
+    indication: document.getElementById('drug-indication').value.trim(),
     unit: document.getElementById('drug-unit').value.trim(),
     volume: parseFloat(document.getElementById('drug-volume').value) || 0,
     perBox: parseInt(document.getElementById('drug-perbox').value) || 0,
