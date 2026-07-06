@@ -773,6 +773,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <input type="text" id="drug-antiinf-system" placeholder="例: NSAIDs / ステロイド / ピリン系" style="width:100%;">
     </div>
     <div class="form-group">
+      <label>製造販売業者</label>
+      <input type="text" id="drug-maker" placeholder="例: 共立製薬" style="width:100%;">
+    </div>
+    <div class="form-group">
       <label>有効期間</label>
       <input type="text" id="drug-expiry" placeholder="例: 24ヶ月" style="width:100%;">
     </div>
@@ -1961,6 +1965,7 @@ function clearDrugForm() {
   document.getElementById('drug-abx-system').value = '';
   document.getElementById('drug-antiinf-system').value = '';
   document.getElementById('drug-expiry').value = '';
+  document.getElementById('drug-maker').value = '';
   document.getElementById('drug-storage').value = '';
   document.getElementById('drug-bacteria').value = '';
   document.getElementById('drug-indication').value = '';
@@ -1991,6 +1996,7 @@ function editDrug(drugId) {
   document.getElementById('drug-abx-system').value = d.abxSystem || '';
   document.getElementById('drug-antiinf-system').value = d.antiinfSystem || '';
   document.getElementById('drug-expiry').value = d.expiry || '';
+  document.getElementById('drug-maker').value = d.maker || '';
   document.getElementById('drug-storage').value = d.storage || '';
   document.getElementById('drug-bacteria').value = d.bacteria || '';
   document.getElementById('drug-indication').value = d.indication || '';
@@ -2031,6 +2037,7 @@ function saveDrug() {
     abxSystem: document.getElementById('drug-abx-system').value.trim(),
     antiinfSystem: document.getElementById('drug-antiinf-system').value.trim(),
     expiry: document.getElementById('drug-expiry').value.trim(),
+    maker: document.getElementById('drug-maker').value.trim(),
     storage: document.getElementById('drug-storage').value.trim(),
     bacteria: document.getElementById('drug-bacteria').value.trim(),
     indication: document.getElementById('drug-indication').value.trim(),
