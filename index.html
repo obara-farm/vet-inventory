@@ -2376,14 +2376,24 @@ function findDrugIdByName(name) {
   return entry ? entry[0] : null;
 }
 
-// 体重×ml/kgで自動計算した投与量（体重・用量が無ければnull）
+// 体重×ml/kgで自動計算した投与量（注射器で吸いやすい0.5mL刻みに丸める）
+// 丸めルール: 小数第1位 0-2→.0、3-6→.5、7-9→次の整数（最低0.5mL）
+function roundDose(raw) {
+  const intPart = Math.floor(raw);
+  const digit = Math.round((raw - intPart) * 10); // 小数第1位
+  let result;
+  if (digit <= 2) result = intPart;
+  else if (digit <= 6) result = intPart + 0.5;
+  else result = intPart + 1;
+  return result < 0.5 ? 0.5 : result;
+}
 function autoDoseFor(drugId) {
   if (!drugId || !drugs[drugId]) return null;
   const d = drugs[drugId];
   if (!d.dosePerKg || d.dosePerKg <= 0) return null;
   const w = parseFloat(document.getElementById('treat-weight')?.value) || 0;
   if (w <= 0) return null;
-  return Math.round(d.dosePerKg * w * 10) / 10;
+  return roundDose(d.dosePerKg * w);
 }
 
 // 体重変更時：プリセットを再描画して用量を再計算
