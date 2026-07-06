@@ -726,6 +726,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
         <option value="強心・呼吸促進剤">強心・呼吸促進剤</option>
         <option value="止血剤">止血剤</option>
         <option value="鎮痙剤">鎮痙剤</option>
+        <option value="麻酔薬">麻酔薬</option>
         <option value="点滴">点滴</option>
         <option value="整腸・止瀉剤">整腸・止瀉剤</option>
         <option value="皮膚保護剤">皮膚保護剤</option>
@@ -1214,7 +1215,7 @@ function renderStockList(q = '') {
   };
 
   // カテゴリ別グループ表示
-  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','ワクチン','駆虫剤','その他'];
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','麻酔薬','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','ワクチン','駆虫剤','その他'];
   const grouped = {};
   list.forEach(d => {
     const cat = d.category || 'その他';
@@ -1231,7 +1232,7 @@ function renderStockList(q = '') {
 }
 
 function populateCategoryFilters() {
-  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','その他'];
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','麻酔薬','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','その他'];
   // 実際に使われているカテゴリーだけ
   const usedCats = new Set(Object.values(drugs).map(d => d.category || 'その他'));
   const cats = catOrder.filter(c => usedCats.has(c));
@@ -1255,7 +1256,7 @@ function renderDrugList(q = '') {
   if (!list.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">該当する薬品がありません</p>'; return; }
 
   // カテゴリ別にグループ化
-  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','その他'];
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','麻酔薬','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','その他'];
   const grouped = {};
   list.forEach(d => {
     const cat = d.category || 'その他';
