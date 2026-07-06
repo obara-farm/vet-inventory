@@ -2117,6 +2117,7 @@ function fmtDrugQty(drugId, qty, noStock) {
 function fmtStockForm(d, stock) {
   const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
   if (form === 'vial') {
+    if (!d.volume || d.volume <= 0) return `${stock}${d.unit || 'V'}`;
     const v = Math.floor(stock / d.volume);
     const rem = Math.round((stock - v * d.volume) * 10) / 10;
     if (v > 0 && rem > 0) return `${v}Vと${rem}ml`;
@@ -2124,6 +2125,7 @@ function fmtStockForm(d, stock) {
     return `${rem}ml`;
   }
   if (form === 'drip') {
+    if (!d.volume || d.volume <= 0) return `${stock}本`;
     const v = Math.floor(stock / d.volume);
     const rem = Math.round((stock - v * d.volume) * 10) / 10;
     if (v > 0 && rem > 0) return `${v}本と${rem}ml`;
