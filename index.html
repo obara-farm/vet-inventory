@@ -282,6 +282,14 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <div id="treat-cow-selected" style="font-size:12px;color:var(--accent);margin-top:4px;"></div>
       <div id="treat-cow-info" style="font-size:11px;color:var(--info);margin-top:3px;display:none;"></div>
     </div>
+    <div class="form-group" id="treat-weight-wrap" style="display:none;">
+      <label>推定体重（kg）※薬用量の自動計算に使用</label>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <input type="number" id="treat-weight" min="0" step="1" onchange="onTreatWeightChange()" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+        <span style="color:var(--muted);font-size:13px;">kg</span>
+      </div>
+      <div id="treat-weight-note" style="font-size:11px;color:var(--muted);margin-top:4px;"></div>
+    </div>
     <div class="form-group">
       <label>処置日</label>
       <input type="date" id="treat-date" onchange="onTreatDateChange()">
@@ -746,12 +754,30 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">入庫時に「◯箱」入力で自動計算します（未設定なら本数入力）</div>
     </div>
     <div class="form-group">
+      <label>体重あたり投与量（mL/kg）</label>
+      <input type="number" id="drug-dose-kg" min="0" step="0.001" value="0" placeholder="0=体重計算しない（固定量）">
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">設定すると処置時に体重×この値で自動計算されます</div>
+    </div>
+    <div class="form-group">
+      <label>投与経路</label>
+      <select id="drug-route" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;-webkit-appearance:none;">
+        <option value="">未設定</option>
+        <option value="皮下">皮下注射</option>
+        <option value="筋肉">筋肉内注射</option>
+        <option value="静脈">静脈内注射</option>
+        <option value="皮下/筋肉">皮下/筋肉</option>
+        <option value="経口">経口</option>
+        <option value="局所">局所・塗布</option>
+        <option value="子宮内">子宮内注入</option>
+      </select>
+    </div>
+    <div class="form-group">
       <label>食肉休薬期間（日）</label>
       <input type="number" id="drug-wd-meat" min="0" value="0" placeholder="0=なし">
     </div>
     <div class="form-group">
-      <label>搾乳休薬期間（日）</label>
-      <input type="number" id="drug-wd-milk" min="0" value="0" placeholder="0=なし">
+      <label>搾乳休薬期間（時間）</label>
+      <input type="number" id="drug-wd-milk-h" min="0" value="0" placeholder="0=なし（時間で入力）">
     </div>
     <div class="form-group">
       <label>在庫管理方法</label>
@@ -866,6 +892,31 @@ function cowDisplayShort(cowId) {
 }
 
 // 月齢/日齢/年齢を計算
+// 褐毛和種 月齢別 標準体重テーブル（線形補間）
+const WEIGHT_TABLE = [
+  [0, 40], [1, 60], [2, 85], [3, 110], [4, 135], [5, 160], [6, 190],
+  [9, 255], [12, 330], [15, 400], [18, 470], [21, 530], [24, 580], [30, 620]
+];
+function estimateWeight(months) {
+  if (months == null || isNaN(months)) return null;
+  if (months >= 30) return 620;      // 30ヶ月以上は肥育上限〜成牛
+  const t = WEIGHT_TABLE;
+  for (let i = 0; i < t.length - 1; i++) {
+    if (months >= t[i][0] && months <= t[i+1][0]) {
+      const [m0, w0] = t[i], [m1, w1] = t[i+1];
+      return Math.round(w0 + (w1 - w0) * (months - m0) / (m1 - m0));
+    }
+  }
+  return 620;
+}
+// 生年月日から月齢（小数）
+function ageMonths(dob) {
+  if (!dob) return null;
+  const birth = new Date(dob + 'T00:00:00');
+  const days = Math.floor((new Date() - birth) / 86400000);
+  return Math.round(days / 30.4 * 10) / 10;
+}
+
 function calcAge(dob, isCalf) {
   if (!dob) return '';
   const birth = new Date(dob + 'T00:00:00');
@@ -1117,7 +1168,7 @@ function renderStockList(q = '') {
     return `<div class="list-item" onclick="openStockDetail('${d.id}')">
       <div class="list-item-main">
         <div class="list-item-name">${d.name}</div>
-        <div class="list-item-sub">${d.volume > 0 ? `1本${d.volume}${d.unit || 'ml'}` : ''}${d.volume > 0 && (d.wdMeat > 0 || d.wdMilk > 0) ? '｜' : ''}${d.wdMeat > 0 ? `食肉${d.wdMeat}日 ` : ''}${d.wdMilk > 0 ? `搾乳${d.wdMilk}日` : ''}</div>
+        <div class="list-item-sub">${d.volume > 0 ? `1本${d.volume}${d.unit || 'ml'}` : ''}${d.volume > 0 && (d.wdMeat > 0 || d.wdMilkH > 0) ? '｜' : ''}${d.wdMeat > 0 ? `食肉${d.wdMeat}日 ` : ''}${d.wdMilkH > 0 ? `搾乳${d.wdMilkH}時間` : ''}</div>
       </div>
       <div style="text-align:right;">
         ${d.stockType==='ml'&&d.volume>0
@@ -1187,7 +1238,7 @@ function renderDrugList(q = '') {
         <div class="list-item" onclick="editDrug('${d.id}')">
           <div class="list-item-main">
             <div class="list-item-name">${d.name}</div>
-            <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1V${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}V`:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilk>0?' 搾乳'+d.wdMilk+'日':''}</div>
+            <div class="list-item-sub">${d.stockType==='ml'?'ml管理':'本数管理'}${d.unit?' / '+d.unit:''}${d.volume>0?` / 1V${d.volume}${d.unit||'ml'}`:''}${d.perBox>0?` / 1箱${d.perBox}V`:''}${d.dosePerKg>0?` / ${d.dosePerKg}mL/kg`:''}${d.route?' / '+d.route:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilkH>0?' 搾乳'+d.wdMilkH+'時間':''}</div>
           </div>
           <div style="color:var(--muted);font-size:18px;">›</div>
         </div>`).join('')}
@@ -1273,6 +1324,10 @@ function initTreatModal() {
   document.getElementById('treat-drug-rows').innerHTML = '';
   const kofuF = document.getElementById('treat-kofu-farm');
   if (kofuF) kofuF.value = '';
+  const wWrap = document.getElementById('treat-weight-wrap');
+  if (wWrap) wWrap.style.display = 'none';
+  const wInput = document.getElementById('treat-weight');
+  if (wInput) wInput.value = '';
   const okiRows = document.getElementById('treat-oki-rows');
   if (okiRows) okiRows.innerHTML = '';
   const okiCount = document.getElementById('treat-oki-count');
@@ -1414,6 +1469,25 @@ function selectTreatCow(cowId) {
     infoEl.style.display = 'none';
   }
   updateWdPreview();
+  // 推定体重を計算して表示
+  const wWrap = document.getElementById('treat-weight-wrap');
+  const wInput = document.getElementById('treat-weight');
+  const wNote = document.getElementById('treat-weight-note');
+  if (c && c.dob) {
+    const m = ageMonths(c.dob);
+    const est = estimateWeight(m);
+    if (est) {
+      wInput.value = est;
+      wNote.textContent = `月齢${m}ヶ月 → 褐毛和種標準体重の推定値（手修正可）`;
+      wWrap.style.display = '';
+    } else {
+      wWrap.style.display = 'none';
+    }
+  } else {
+    wInput.value = '';
+    wNote.textContent = '生年月日が不明のため手入力してください';
+    wWrap.style.display = '';
+  }
   // 牛が変わったら薬品プリセットの投与日数を再計算
   const dcode = document.getElementById('treat-disease-code')?.value;
   if (dcode && DRUG_PRESETS[dcode]) loadDrugPreset(dcode);
@@ -1829,7 +1903,9 @@ function clearDrugForm() {
   document.getElementById('drug-perbox').value = '';
   document.getElementById('drug-volume-wrap').style.display = '';
   document.getElementById('drug-wd-meat').value = '0';
-  document.getElementById('drug-wd-milk').value = '0';
+  document.getElementById('drug-wd-milk-h').value = '0';
+  document.getElementById('drug-dose-kg').value = '0';
+  document.getElementById('drug-route').value = '';
   document.getElementById('drug-unit').value = '';
   document.getElementById('drug-threshold').value = '0';
   document.getElementById('drug-usage').value = '';
@@ -1845,7 +1921,9 @@ function editDrug(drugId) {
   document.getElementById('drug-category').value = d.category || 'その他';
   document.getElementById('drug-stock-type').value = d.stockType || 'count';
   document.getElementById('drug-wd-meat').value = d.wdMeat || 0;
-  document.getElementById('drug-wd-milk').value = d.wdMilk || 0;
+  document.getElementById('drug-wd-milk-h').value = d.wdMilkH || 0;
+  document.getElementById('drug-dose-kg').value = d.dosePerKg || 0;
+  document.getElementById('drug-route').value = d.route || '';
   document.getElementById('drug-unit').value = d.unit || '';
   document.getElementById('drug-volume').value = d.volume || '';
   document.getElementById('drug-perbox').value = d.perBox || '';
@@ -1870,7 +1948,9 @@ function saveDrug() {
     category: document.getElementById('drug-category').value,
     stockType: document.getElementById('drug-stock-type').value || 'count',
     wdMeat: parseInt(document.getElementById('drug-wd-meat').value) || 0,
-    wdMilk: parseInt(document.getElementById('drug-wd-milk').value) || 0,
+    wdMilkH: parseInt(document.getElementById('drug-wd-milk-h').value) || 0,
+    dosePerKg: parseFloat(document.getElementById('drug-dose-kg').value) || 0,
+    route: document.getElementById('drug-route').value || '',
     unit: document.getElementById('drug-unit').value.trim(),
     volume: parseFloat(document.getElementById('drug-volume').value) || 0,
     perBox: parseInt(document.getElementById('drug-perbox').value) || 0,
@@ -2206,6 +2286,22 @@ function findDrugIdByName(name) {
   return entry ? entry[0] : null;
 }
 
+// 体重×ml/kgで自動計算した投与量（体重・用量が無ければnull）
+function autoDoseFor(drugId) {
+  if (!drugId || !drugs[drugId]) return null;
+  const d = drugs[drugId];
+  if (!d.dosePerKg || d.dosePerKg <= 0) return null;
+  const w = parseFloat(document.getElementById('treat-weight')?.value) || 0;
+  if (w <= 0) return null;
+  return Math.round(d.dosePerKg * w * 10) / 10;
+}
+
+// 体重変更時：プリセットを再描画して用量を再計算
+function onTreatWeightChange() {
+  const dcode = document.getElementById('treat-disease-code')?.value;
+  if (dcode) loadDrugPreset(dcode);
+}
+
 function loadDrugPreset(diseaseCode) {
   const wrap = document.getElementById('treat-drug-preset');
   // 肺炎は専用レンダラー
@@ -2277,12 +2373,20 @@ function loadDrugPreset(diseaseCode) {
         note += `（3日間投与の${dayNum}/3日目）`;
       }
     }
+    // 量が0（未指定）で体重あたり用量があれば自動計算
+    let qtyVal = s.qty;
+    const auto = (s.qty === 0 && !s.noStock) ? autoDoseFor(drugId) : null;
+    if (auto != null) {
+      qtyVal = auto;
+      const rt = d?.route ? '・' + d.route : '';
+      note = (note ? note + ' ' : '') + `自動計算 ${d.dosePerKg}mL/kg${rt}`;
+    }
     html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
       <div onclick="toggleDrugPreset('dp_single_${i}')" style="display:flex;align-items:center;cursor:pointer;">
         <span id="box_dp_single_${i}" style="width:22px;height:22px;border:2px solid ${checked?'var(--accent)':'var(--border)'};background:${checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${checked?'✓':''}</span>
         <input type="checkbox" id="dp_single_${i}" ${checked?'checked':''} data-drug-id="${drugId||''}" data-name="${s.name}" data-nostock="${s.noStock?1:0}" style="display:none;">
         <span style="font-size:14px;flex:1;">${s.name}</span>
-        <input type="number" id="dp_single_qty_${i}" value="${s.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
+        <input type="number" id="dp_single_qty_${i}" value="${qtyVal}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
         <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${unit}</span>
       </div>
       ${note ? `<div style="font-size:10px;color:${dayNum>=4&&s.note&&s.note.includes('3日間')?'var(--danger)':'var(--warn)'};margin-left:32px;">${note}</div>` : ''}
@@ -3503,7 +3607,7 @@ function makeKofuPdf(cowId, farmName, date, kind, kofuDrugs) {
     const drug = drugs[d.drugId];
     if (!drug) return '';
     const wdMeat = drug.wdMeat > 0 ? `使用後 ${drug.wdMeat}日間` : 'なし';
-    const wdMilk = drug.wdMilk > 0 ? `使用後 ${drug.wdMilk}日間` : 'なし';
+    const wdMilk = drug.wdMilkH > 0 ? `使用後 ${drug.wdMilkH}時間` : 'なし';
     let qtyDisp = `${d.qty}${drug.unit||''}`;
     if (d.noStock || d.qty === 0) qtyDisp = '塗布';
     else if (drug.stockType === 'ml' && drug.volume > 0) qtyDisp = `${Math.round(d.qty/drug.volume*10)/10}V(${d.qty}${drug.unit||'ml'})`;
