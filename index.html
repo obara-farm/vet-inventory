@@ -2674,6 +2674,13 @@ function renderPneumoniaPreset() {
   const dayNum = calcDayNum('031404');
   const pat = PNEUMONIA_DRUG_PRESET.patterns[pneumoniaPatternIdx];
 
+  // 体重あたり用量があればそれを優先、なければプリセットの固定量
+  const pnQty = (name, presetQty) => {
+    const id = findDrugIdByName(name);
+    const auto = id ? autoDoseFor(id) : null;
+    return auto != null ? auto : presetQty;
+  };
+
   // パターン切替ボタン
   let html = '<div style="background:var(--bg3);border:1px solid var(--info);border-radius:8px;padding:10px 12px;">' +
     '<div style="font-size:11px;color:var(--info);font-weight:700;margin-bottom:8px;">💊 肺炎の使用薬（パターンを選択）</div>' +
@@ -2700,7 +2707,7 @@ function renderPneumoniaPreset() {
           <span id="box_pn_${gi}_a" style="width:20px;height:20px;border:2px solid ${aOn?'var(--accent)':'var(--border)'};background:${aOn?'var(--accent)':'transparent'};border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;">${aOn?'●':''}</span>
           <input type="checkbox" id="pn_${gi}_a" ${aOn?'checked':''} data-drug-id="${aId||''}" data-name="${g.a.name}" data-days3="${g.a.days3?1:0}" style="display:none;">
           <span style="font-size:13px;flex:1;">${g.a.name}${g.a.note?`<span style="font-size:10px;color:var(--muted);">（${g.a.note}）</span>`:''}</span>
-          <input type="number" id="pn_qty_${gi}_a" value="${g.a.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          <input type="number" id="pn_qty_${gi}_a" value="${pnQty(g.a.name, g.a.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
           <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.a.name)}</span>
         </div>
         ${g.a.days3?dayNote(true):''}
@@ -2708,7 +2715,7 @@ function renderPneumoniaPreset() {
           <span id="box_pn_${gi}_b" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
           <input type="checkbox" id="pn_${gi}_b" data-drug-id="${bId||''}" data-name="${g.b.name}" data-days3="${g.b.days3?1:0}" style="display:none;">
           <span style="font-size:13px;flex:1;">${g.b.name}${g.b.note?`<span style="font-size:10px;color:var(--muted);">（${g.b.note}）</span>`:''}</span>
-          <input type="number" id="pn_qty_${gi}_b" value="${g.b.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          <input type="number" id="pn_qty_${gi}_b" value="${pnQty(g.b.name, g.b.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
           <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.b.name)}</span>
         </div>
         <div id="daynote_pn_${gi}_b" style="display:${g.b.days3?'none':'none'};"></div>
@@ -2720,7 +2727,7 @@ function renderPneumoniaPreset() {
           <span id="box_pn_${gi}_s" style="width:20px;height:20px;border:2px solid ${g.checked?'var(--accent)':'var(--border)'};background:${g.checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;">${g.checked?'✓':''}</span>
           <input type="checkbox" id="pn_${gi}_s" ${g.checked?'checked':''} data-drug-id="${id||''}" data-name="${g.name}" style="display:none;">
           <span style="font-size:13px;flex:1;">${g.name}</span>
-          <input type="number" id="pn_qty_${gi}_s" value="${g.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+          <input type="number" id="pn_qty_${gi}_s" value="${pnQty(g.name, g.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
           <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.name)}</span>
         </div>
       </div>`;
@@ -2735,7 +2742,7 @@ function renderPneumoniaPreset() {
             <span id="box_pn_${gi}_ap_${oi}_s" style="width:20px;height:20px;border:2px solid ${chk?'var(--accent)':'var(--border)'};background:${chk?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;">${chk?'✓':''}</span>
             <input type="checkbox" id="pn_${gi}_ap_${oi}_s" ${chk?'checked':''} data-drug-id="${id||''}" data-name="${o.name}" style="display:none;">
             <span style="font-size:13px;flex:1;">${o.name}${o.note?`<span style="font-size:10px;color:var(--muted);">（${o.note}）</span>`:''}</span>
-            <input type="number" id="pn_qty_${gi}_ap_${oi}_s" value="${o.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+            <input type="number" id="pn_qty_${gi}_ap_${oi}_s" value="${pnQty(o.name, o.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
             <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(o.name)}</span>
           </div>`;
         }).join('')}
@@ -2749,7 +2756,7 @@ function renderPneumoniaPreset() {
             <span id="box_pn_${gi}_c${oi}" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
             <input type="checkbox" id="pn_${gi}_c${oi}" data-drug-id="${id||''}" data-name="${o.name}" data-choice="${gi}" style="display:none;">
             <span style="font-size:13px;flex:1;">${o.name}</span>
-            <input type="number" id="pn_qty_${gi}_c${oi}" value="${o.qty}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
+            <input type="number" id="pn_qty_${gi}_c${oi}" value="${pnQty(o.name, o.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
             <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(o.name)}</span>
           </div>`;
         }).join('')}
