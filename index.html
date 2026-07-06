@@ -678,6 +678,15 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <label id="stockin-qty-label">数量</label>
       <input type="number" id="stockin-qty" min="0" step="1" value="1" placeholder="数量" oninput="enforceStockInStep(this)">
     </div>
+    <div class="form-group" id="stockin-sub-wrap" style="display:none;">
+      <label id="stockin-sub-label">端数</label>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="number" id="stockin-sub-qty" min="0" step="0.1" value="0" placeholder="端数"
+          style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;">
+        <span id="stockin-sub-unit" style="color:var(--muted);font-size:13px;">ml</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">棚卸しでは大単位＋端数を入力できます（例: 1箱と3A）</div>
+    </div>
     <div class="form-group" id="stockin-partial-wrap" style="display:none;">
       <label style="font-size:11px;color:var(--warn);">開封済み瓶がある場合</label>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -1793,9 +1802,7 @@ function initStockInModal() {
     Object.entries(drugs).sort((a, b) => a[1].name?.localeCompare(b[1].name))
       .map(([id, d]) => {
         const stock = calcStock(id);
-        const unit = d.unit || '';
-        const type = d.stockType === 'ml' ? 'ml管理' : '本数管理';
-        return `<option value="${id}">${d.name}（残:${stock}${unit} / ${type}）</option>`;
+        return `<option value="${id}">${d.name}（残:${fmtStockForm(d, stock)}）</option>`;
       }).join('');
   setStockInMode('in');
   updateStockInUnit();
@@ -1842,100 +1849,110 @@ function updateStockInUnit() {
   const qtyLabel = document.getElementById('stockin-qty-label');
   const qtyInput = document.getElementById('stockin-qty');
   const partialWrap = document.getElementById('stockin-partial-wrap');
+  const subWrap = document.getElementById('stockin-sub-wrap');
+  const subLabel = document.getElementById('stockin-sub-label');
+  const subUnit = document.getElementById('stockin-sub-unit');
   const mode = document.getElementById('stockin-mode-in')?.dataset?.mode || 'in';
   if (!qtyLabel) return;
   const d = drugId && drugs[drugId] ? drugs[drugId] : null;
-  // 棚卸しモード
+  const form = d ? (d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '')) : '';
+  if (subWrap) subWrap.style.display = 'none';
+  if (partialWrap) partialWrap.style.display = 'none';
+
+  // 大単位・小単位のラベルを形態から決める
+  const unitInfo = () => {
+    switch (form) {
+      case 'vial':    return { big:'V',  small:'ml', bigDesc:`1V${d.volume}ml` };
+      case 'drip':    return { big:'本', small:'ml', bigDesc:`1本${d.volume}ml` };
+      case 'ampoule': return { big:'箱', small:'A',  bigDesc:`1箱${d.perBox}A` };
+      case 'powder':  return { big:'箱', small:'包', bigDesc:`1箱${d.perBox}包` };
+      case 'sachet':  return { big:'袋', small:'',   bigDesc:'' };
+      default:        return { big:d?.unit||'', small:'', bigDesc:'' };
+    }
+  };
+
+  if (!d) { qtyLabel.textContent = '数量'; return; }
+  const ui = unitInfo();
+
+  // 棚卸しモード：大単位＋小単位
   if (mode === 'count') {
-    if (qtyInput) qtyInput.step = '1'; // 本数入力なので整数
-    if (d && d.stockType === 'ml' && d.volume > 0) {
-      qtyLabel.textContent = `現在の未開封本数（1V${d.volume}${d.unit||'ml'}）`;
-    } else if (d && d.stockType === 'ml') {
-      qtyLabel.textContent = `現在の残量（${d.unit||'ml'}）`;
-      if (qtyInput) qtyInput.step = '0.1';
-    } else {
-      qtyLabel.textContent = '現在の残量（本数）';
+    if (qtyInput) qtyInput.step = '1';
+    qtyLabel.textContent = `現在の${ui.big}数${ui.bigDesc?`（${ui.bigDesc}）`:''}`;
+    if (form === 'sachet' || form === '') {
+      if (form === '') { qtyLabel.textContent = `現在の残量（${d.unit||'ml'}）`; if(qtyInput) qtyInput.step='0.1'; }
+    } else if (ui.small && subWrap) {
+      subWrap.style.display = '';
+      subLabel.textContent = `端数（${ui.small}）`;
+      subUnit.textContent = ui.small;
+      document.getElementById('stockin-sub-qty').step = ui.small === 'ml' ? '0.1' : '1';
     }
     return;
   }
-  if (!d) {
-    qtyLabel.textContent = '数量';
-    if (partialWrap) partialWrap.style.display = 'none';
-    return;
-  }
-  // 入庫は箱・本なので整数
+
+  // 入庫モード：大単位だけ
   if (qtyInput) qtyInput.step = '1';
-  if (d.perBox > 0) {
-    // 箱入力
-    if (d.stockType === 'ml' && d.volume > 0) {
-      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}V×${d.volume}${d.unit||'ml'}）`;
-    } else {
-      qtyLabel.textContent = `入庫箱数（1箱${d.perBox}V）`;
-    }
-    if (partialWrap) partialWrap.style.display = d.stockType === 'ml' ? '' : 'none';
-  } else if (d.stockType === 'ml') {
-    if (d.volume > 0) {
-      qtyLabel.textContent = `入庫本数（1V${d.volume}${d.unit||'ml'}）`;
-    } else {
-      qtyLabel.textContent = `入庫量（${d.unit||'ml'}）`;
-      if (qtyInput) qtyInput.step = '0.1'; // 容量未設定のml薬は直接ml入力なので小数OK
-    }
-    if (partialWrap) partialWrap.style.display = '';
+  if (form === 'sachet') { qtyLabel.textContent = '入庫袋数'; }
+  else if (form === '') {
+    qtyLabel.textContent = `入庫量（${d.unit||'ml'}）`;
+    if (qtyInput) qtyInput.step = '0.1';
   } else {
-    qtyLabel.textContent = `入庫本数`;
-    if (partialWrap) partialWrap.style.display = 'none';
+    qtyLabel.textContent = `入庫${ui.big}数${ui.bigDesc?`（${ui.bigDesc}）`:''}`;
+    if ((form === 'vial' || form === 'drip') && partialWrap) partialWrap.style.display = '';
   }
 }
 
 function saveStockIn() {
   const drugId = document.getElementById('stockin-drug-id').value;
   const qty = parseFloat(document.getElementById('stockin-qty').value) || 0;
+  const subQty = parseFloat(document.getElementById('stockin-sub-qty')?.value) || 0;
   const memo = document.getElementById('stockin-memo').value;
   const partial = parseFloat(document.getElementById('stockin-partial')?.value) || 0;
   const mode = document.getElementById('stockin-mode-in')?.dataset?.mode || 'in';
   const date = mode === 'count' ? today() : (document.getElementById('stockin-date').value || today());
   if (!drugId) { alert('薬品を選択してください'); return; }
-  if (qty <= 0 && partial <= 0) { alert('数量を入力してください'); return; }
+  const d = drugs[drugId];
+  const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+  if (qty <= 0 && subQty <= 0 && partial <= 0) { alert('数量を入力してください'); return; }
+
+  // 大単位＋小単位 → 内部保存値（総ml / 総A / 総包 / 総袋）に換算
+  const toInternal = (big, small) => {
+    switch (form) {
+      case 'vial':
+      case 'drip':    return big * (d.volume || 1) + small;          // 総ml
+      case 'ampoule': return big * (d.perBox || 1) + small;          // 総A
+      case 'powder':  return big * (d.perBox || 1) + small;          // 総包
+      case 'sachet':  return big;                                    // 総袋
+      default:        return big;                                    // その他
+    }
+  };
+  const dispBigSmall = (big, small) => {
+    switch (form) {
+      case 'vial':    return `${big}Vと${small}ml`;
+      case 'drip':    return `${big}本と${small}ml`;
+      case 'ampoule': return `${big}箱と${small}A`;
+      case 'powder':  return `${big}箱と${small}包`;
+      case 'sachet':  return `${big}袋`;
+      default:        return `${big}${d.unit||''}`;
+    }
+  };
 
   const updates = {};
 
   if (mode === 'count') {
-    // 棚卸し：本数入力→ml換算（容量設定ありの場合）
-    const d = drugs[drugId];
-    let targetStock = qty;
-    let inputDesc = `${qty}`;
-    if (d && d.stockType === 'ml' && d.volume > 0) {
-      targetStock = qty * d.volume;
-      inputDesc = `${qty}V(${targetStock}${d.unit||'ml'})`;
-    }
+    // 棚卸し：大単位＋小単位 → 内部値
+    const targetStock = toInternal(qty, subQty);
     const currentStock = calcStock(drugId);
     const diff = targetStock - currentStock;
     if (diff === 0) { alert('現在の在庫数と同じです'); return; }
     const movId = 'mov_' + Date.now();
     updates['movements/' + movId] = {
       drugId, type: 'adjust', qty: diff, date,
-      memo: `棚卸し（→${inputDesc}）`
+      memo: `棚卸し（→${dispBigSmall(qty, subQty)}）`
     };
   } else {
-    // 通常入庫
-    const d = drugs[drugId];
-    let actualQty = qty;
-    let memoText = memo || '新品入庫';
-    if (d && d.perBox > 0) {
-      // 箱入力：箱→本→ml
-      const bottles = qty * d.perBox;
-      if (d.stockType === 'ml' && d.volume > 0) {
-        actualQty = bottles * d.volume;
-        memoText = `${qty}箱×${d.perBox}V×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
-      } else {
-        actualQty = bottles;
-        memoText = `${qty}箱×${d.perBox}V=${bottles}V` + (memo ? '／'+memo : '');
-      }
-    } else if (d && d.stockType === 'ml' && d.volume > 0) {
-      // 本数入力（ml換算）
-      actualQty = qty * d.volume;
-      memoText = `${qty}V×${d.volume}${d.unit||'ml'}=${actualQty}${d.unit||'ml'}` + (memo ? '／'+memo : '');
-    }
+    // 通常入庫：大単位だけ
+    const actualQty = toInternal(qty, 0);
+    let memoText = `${qty}${form==='sachet'?'袋':form==='ampoule'||form==='powder'?'箱':form==='drip'?'本':form==='vial'?'V':(d.unit||'')}` + (memo ? '／'+memo : '');
     if (qty > 0) {
       const movId = 'mov_' + Date.now();
       updates['movements/' + movId] = { drugId, type: 'in', qty: actualQty, date, memo: memoText };
@@ -1947,7 +1964,8 @@ function saveStockIn() {
   }
 
   saveVet(updates).then(() => {
-    document.getElementById('stockin-partial') && (document.getElementById('stockin-partial').value = '');
+    const p = document.getElementById('stockin-partial'); if (p) p.value = '';
+    const s = document.getElementById('stockin-sub-qty'); if (s) s.value = '0';
     closeModal('modal-stock-in');
   });
 }
