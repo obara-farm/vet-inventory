@@ -3887,9 +3887,60 @@ function openNenpo() {
   openModal('modal-nenpo');
 }
 
+// 棚卸し用チェックリスト印刷
+function printInventorySheet() {
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','麻酔薬','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','ワクチン','駆虫剤','その他'];
+  const grouped = {};
+  Object.entries(drugs).forEach(([id, d]) => {
+    const cat = d.category || 'その他';
+    if (!grouped[cat]) grouped[cat] = [];
+    grouped[cat].push({ id, ...d });
+  });
+  const cats = catOrder.filter(c => grouped[c]).concat(Object.keys(grouped).filter(c => !catOrder.includes(c)));
+
+  let rows = '';
+  cats.forEach(cat => {
+    rows += `<tr><td colspan="4" style="background:#e8e8e8;font-weight:700;padding:4px 8px;border:1px solid #000;">${cat}</td></tr>`;
+    grouped[cat].sort((a,b)=>(a.name||'').localeCompare(b.name||'','ja')).forEach(d => {
+      const stock = calcStock(d.id);
+      const sysStock = (d.stockType==='ml'&&d.volume>0)
+        ? `${Math.floor(stock/d.volume)}V${stock%d.volume>0?'と'+Math.round((stock-Math.floor(stock/d.volume)*d.volume)*10)/10+'ml':''}`
+        : `${stock}${d.unit||''}`;
+      rows += `<tr>
+        <td style="border:1px solid #000;padding:5px 8px;font-size:11px;">${d.name}${d.volume>0?`<span style="color:#666;font-size:9px;">（1V${d.volume}ml）</span>`:''}</td>
+        <td style="border:1px solid #000;padding:5px 8px;font-size:10px;color:#666;text-align:center;">${sysStock}</td>
+        <td style="border:1px solid #000;padding:5px 8px;width:90px;"></td>
+        <td style="border:1px solid #000;padding:5px 8px;width:110px;"></td>
+      </tr>`;
+    });
+  });
+
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>在庫棚卸し表</title>
+  <style>
+    @media print{@page{size:A4;margin:12mm;}.no-print{display:none;}}
+    body{font-family:'游ゴシック','Yu Gothic',sans-serif;color:#000;background:#fff;padding:16px;}
+    table{border-collapse:collapse;width:100%;}
+    th{background:#333;color:#fff;border:1px solid #000;padding:6px 8px;font-size:11px;}
+    h1{font-size:16pt;text-align:center;margin:0 0 4px;}
+  </style></head><body>
+  <h1>薬品在庫 棚卸し表</h1>
+  <div style="text-align:center;font-size:11px;color:#555;margin-bottom:4px;">小原家畜診療所　　棚卸し日：R___年___月___日　　記入者：__________</div>
+  <table>
+    <thead><tr><th style="text-align:left;">薬品名</th><th style="width:70px;">現在庫(参考)</th><th style="width:90px;">実棚数</th><th style="width:110px;">備考</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div style="font-size:9px;color:#888;margin-top:8px;">※「現在庫(参考)」はシステム上の数値です。実際に数えた数を「実棚数」に記入してください。差異があれば備考へ。</div>
+  <div class="no-print" style="text-align:center;margin-top:20px;">
+    <button onclick="window.print()" style="padding:10px 24px;font-size:14px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;">🖨️ 印刷 / PDF保存</button>
+  </div>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+}
+
 function printNenpo() {
   const year = parseInt(document.getElementById('nenpo-year').value);
-
   // 全角変換
   const toFW = s => String(s).split('').map(c => {
     const n = c.charCodeAt(0);
