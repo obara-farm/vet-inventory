@@ -1307,12 +1307,12 @@ function renderDrugList(q = '') {
                 : geki ? '<span style="color:#e74c3c;font-weight:700;font-size:12px;margin-left:6px;border:1.5px solid #e74c3c;border-radius:50%;padding:0 3px;">劇</span>' : '';
     const dform = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
     let formDesc = '';
-    if (dform === 'vial' && d.volume > 0) formDesc = `1V${d.volume}ml`;
-    else if (dform === 'drip' && d.volume > 0) formDesc = `点滴 1本${d.volume}ml`;
+    if (dform === 'vial' && d.volume > 0) formDesc = `1V${d.volume}ml${d.perBox>0?`・1箱${d.perBox}V`:''}`;
+    else if (dform === 'drip' && d.volume > 0) formDesc = `点滴 1本${d.volume}ml${d.perBox>0?`・1箱${d.perBox}本`:''}`;
     else if (dform === 'ampoule') formDesc = `アンプル 1箱${d.perBox||'?'}A・1A${d.volume||'?'}ml`;
     else if (dform === 'powder') formDesc = `粉包 1箱${d.perBox||'?'}包`;
-    else if (dform === 'bottle') formDesc = `1本${d.volume||'?'}ml`;
-    else if (dform === 'sachet') formDesc = '袋';
+    else if (dform === 'bottle') formDesc = `1本${d.volume||'?'}ml${d.perBox>0?`・1箱${d.perBox}本`:''}`;
+    else if (dform === 'sachet') formDesc = `袋${d.perBox>0?`・1箱${d.perBox}袋`:''}`;
     return `<div class="list-item" onclick="editDrug('${d.id}')">
       <div class="list-item-main">
         <div class="list-item-name">${d.name}${badge}</div>
