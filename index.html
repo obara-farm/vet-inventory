@@ -1315,7 +1315,7 @@ function renderDrugList(q = '') {
     else if (dform === 'drip' && d.volume > 0) formDesc = `点滴 1本${d.volume}ml${d.perBox>0?`・1箱${d.perBox}本`:''}`;
     else if (dform === 'ampoule') formDesc = `アンプル 1箱${d.perBox||'?'}A・1A${d.volume||'?'}ml`;
     else if (dform === 'powder') formDesc = `粉包 1箱${d.perBox||'?'}包`;
-    else if (dform === 'bottle') formDesc = `1本${d.volume||'?'}ml${d.perBox>0?`・1箱${d.perBox}本`:''}`;
+    else if (dform === 'bottle') formDesc = (d.unit && d.unit !== 'ml') ? `${d.unit}管理${d.perBox>0?`・1箱${d.perBox}${d.unit}`:''}` : `1本${d.volume||'?'}ml${d.perBox>0?`・1箱${d.perBox}本`:''}`;
     else if (dform === 'sachet') formDesc = `袋${d.perBox>0?`・1箱${d.perBox}袋`:''}`;
     return `<div class="list-item" onclick="editDrug('${d.id}')">
       <div class="list-item-main">
@@ -1879,7 +1879,7 @@ function updateStockInUnit() {
       case 'drip':    return { big:'本', small:'ml', bigDesc:`1本${d.volume}ml` };
       case 'ampoule': return { big:'箱', small:'A',  bigDesc:`1箱${d.perBox}A` };
       case 'powder':  return { big:'箱', small:'包', bigDesc:`1箱${d.perBox}包` };
-      case 'bottle':  return { big:'本', small:'',   bigDesc:'' };
+      case 'bottle':  return { big:(d.unit&&d.unit!=='ml'?d.unit:'本'), small:'', bigDesc:'' };
       case 'sachet':  return { big:'袋', small:'',   bigDesc:'' };
       default:        return { big:d?.unit||'', small:'', bigDesc:'' };
     }
@@ -1906,7 +1906,7 @@ function updateStockInUnit() {
   // 入庫モード：大単位だけ
   if (qtyInput) qtyInput.step = '1';
   if (form === 'sachet') { qtyLabel.textContent = '入庫袋数'; }
-  else if (form === 'bottle') { qtyLabel.textContent = '入庫本数'; }
+  else if (form === 'bottle') { qtyLabel.textContent = `入庫${d.unit&&d.unit!=='ml'?d.unit:'本'}数`; }
   else if (form === '') {
     qtyLabel.textContent = `入庫量（${d.unit||'ml'}）`;
     if (qtyInput) qtyInput.step = '0.1';
@@ -2173,7 +2173,7 @@ function fmtStockForm(d, stock) {
     }
     return `${stock}包`;
   }
-  if (form === 'bottle') return `${stock}本`;
+  if (form === 'bottle') return `${stock}${d.unit && d.unit !== 'ml' ? d.unit : '本'}`;
   if (form === 'sachet') return `${stock}袋`;
   return `${stock}${d.unit || ''}`;
 }
