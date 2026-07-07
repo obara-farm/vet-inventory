@@ -1239,11 +1239,16 @@ function renderStockList(q = '') {
     else if (form === 'ampoule') subCap = `1箱${d.perBox||'?'}A${d.volume>0?`・1A${d.volume}ml`:''}`;
     else if (form === 'powder') subCap = `1箱${d.perBox||'?'}包`;
     const wdInfo = `${d.wdMeat > 0 ? `食肉${d.wdMeat}日 ` : ''}${d.wdMilkH > 0 ? `搾乳${d.wdMilkH}時間` : ''}`;
+    let coldB = '';
+    if (d.storage && /冷所|冷蔵|冷凍|凍結|要冷/.test(d.storage)) {
+      let lb = /冷凍/.test(d.storage)?'冷凍':/冷蔵/.test(d.storage)?'冷蔵':'冷所';
+      coldB = `<span style="color:#38bdf8;font-size:11px;margin-left:5px;">❄${lb}</span>`;
+    }
     const stockDisp = fmtStockForm(d, d.stock);
     return `<div class="list-item" onclick="openStockDetail('${d.id}')">
       <div class="list-item-main">
         <div class="list-item-name">${d.name}${d.regulation&&d.regulation.doku?'<span style="color:#e74c3c;font-weight:700;font-size:11px;margin-left:6px;border:1.5px solid #e74c3c;border-radius:50%;padding:0 3px;">毒</span>':d.regulation&&d.regulation.geki?'<span style="color:#e74c3c;font-weight:700;font-size:11px;margin-left:6px;border:1.5px solid #e74c3c;border-radius:50%;padding:0 3px;">劇</span>':''}</div>
-        <div class="list-item-sub">${subCap}${subCap&&wdInfo?'｜':''}${wdInfo}</div>
+        <div class="list-item-sub">${subCap}${subCap&&wdInfo?'｜':''}${wdInfo}${coldB}</div>
       </div>
       <div style="text-align:right;">
         <div class="stock-num ${isOut ? 'text-danger' : isLow ? 'text-warn' : 'text-accent'}" style="font-size:15px;">${stockDisp}</div>
@@ -1318,10 +1323,19 @@ function renderDrugList(q = '') {
     else if (dform === 'powder') formDesc = `粉包 1箱${d.perBox||'?'}包`;
     else if (dform === 'bottle') formDesc = (d.unit && d.unit !== 'ml') ? `${d.unit}管理${d.perBox>0?`・1箱${d.perBox}${d.unit}`:''}` : `1本${d.volume||'?'}ml${d.perBox>0?`・1箱${d.perBox}本`:''}`;
     else if (dform === 'sachet') formDesc = `袋${d.perBox>0?`・1箱${d.perBox}袋`:''}`;
+    // 冷蔵・冷凍など特別な保存方法（室温は表示しない）
+    let coldBadge = '';
+    if (d.storage && /冷所|冷蔵|冷凍|凍結|要冷/.test(d.storage)) {
+      let label = '冷所';
+      if (/冷凍/.test(d.storage)) label = '冷凍';
+      else if (/冷蔵/.test(d.storage)) label = '冷蔵';
+      else if (/冷所/.test(d.storage)) label = '冷所';
+      coldBadge = `<span style="color:#38bdf8;font-size:11px;margin-left:6px;">❄${label}</span>`;
+    }
     return `<div class="list-item" onclick="editDrug('${d.id}')">
       <div class="list-item-main">
         <div class="list-item-name">${d.name}${badge}</div>
-        <div class="list-item-sub">${formDesc}${formDesc&&d.dosePerKg>0?' / ':''}${d.dosePerKg>0?`${d.dosePerKg}mL/kg`:''}${d.route?' / '+d.route:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilkH>0?' 搾乳'+d.wdMilkH+'時間':''}</div>
+        <div class="list-item-sub">${formDesc}${formDesc&&d.dosePerKg>0?' / ':''}${d.dosePerKg>0?`${d.dosePerKg}mL/kg`:''}${d.route?' / '+d.route:''}${d.wdMeat>0?' ｜ 食肉'+d.wdMeat+'日':''}${d.wdMilkH>0?' 搾乳'+d.wdMilkH+'時間':''}${coldBadge}</div>
       </div>
       <div style="color:var(--muted);font-size:18px;">›</div>
     </div>`;
