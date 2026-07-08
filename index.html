@@ -261,6 +261,19 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
 <!-- ===== モーダル ===== -->
 
 <!-- 処置登録モーダル -->
+<!-- 薬品選択ポップアップ（カテゴリー→薬品） -->
+<div class="modal-overlay" id="modal-drug-picker" style="z-index:2000;">
+  <div class="modal" style="max-width:440px;">
+    <div class="modal-title">
+      💊 薬品を選択
+      <button class="modal-close" onclick="closeModal('modal-drug-picker')">✕</button>
+    </div>
+    <input type="text" id="drug-picker-search" placeholder="薬品名で検索..." oninput="renderDrugPicker()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:8px;">
+    <div id="drug-picker-cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;"></div>
+    <div id="drug-picker-list" style="max-height:50vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-treat">
   <div class="modal">
     <div class="modal-title">
@@ -672,7 +685,8 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     <div id="stockin-mode-desc" style="font-size:11px;color:var(--muted);margin-bottom:8px;padding:6px 10px;background:var(--bg3);border-radius:6px;">新しく仕入れた分を追加します</div>
     <div class="form-group">
       <label>薬品</label>
-      <select id="stockin-drug-id" onchange="updateStockInUnit()"><option value="">選択...</option></select>
+      <select id="stockin-drug-id" onchange="updateStockInUnit()" style="display:none;"><option value="">選択...</option></select>
+      <button type="button" id="stockin-drug-btn" onclick="pickForStockIn()" style="width:100%;text-align:left;background:var(--bg3);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:10px 12px;font-size:14px;cursor:pointer;">薬品を選択...</button>
     </div>
     <div class="form-group">
       <label id="stockin-qty-label">数量</label>
@@ -1489,15 +1503,13 @@ function setHanshokuType(type) {
 
 // 治療モードの置き薬
 function addTreatOkiRow() {
-  const drugOptions = drugOptionsGrouped(false);
   const row = document.createElement('div');
   row.className = 'toki-row';
   row.style.marginBottom = '6px';
   row.innerHTML = `
     <div style="display:flex;gap:5px;align-items:center;">
-      <select onchange="onTreatOkiRowChange(this)" style="flex:1;min-width:0;background:var(--bg3);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:8px 4px;font-size:13px;">
-        <option value="">置き薬を選択...</option>${drugOptions}
-      </select>
+      <select onchange="onTreatOkiRowChange(this)" style="display:none;"><option value="">選択...</option></select>
+      <button type="button" onclick="pickForRow(this,'oki')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--warn);color:var(--muted);border-radius:8px;padding:8px 8px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">置き薬を選択...</button>
       <select class="toki-unit-mode" onchange="onTreatOkiUnitMode(this)" style="flex:none;width:48px;background:var(--bg3);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:8px 2px;font-size:12px;">
         <option value="bara">バラ</option>
         <option value="box">箱</option>
@@ -1659,6 +1671,61 @@ function selectTreatCow(cowId) {
   if (dcode && DRUG_PRESETS[dcode]) loadDrugPreset(dcode);
 }
 
+// ===== 薬品選択ポップアップ =====
+let drugPickerCallback = null;
+let drugPickerCat = '';
+function openDrugPicker(callback) {
+  drugPickerCallback = callback;
+  drugPickerCat = '';
+  document.getElementById('drug-picker-search').value = '';
+  renderDrugPickerCats();
+  renderDrugPicker();
+  openModal('modal-drug-picker');
+}
+function renderDrugPickerCats() {
+  const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','麻酔薬','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','塗布薬','ワクチン','駆虫剤','その他'];
+  const used = new Set(Object.values(drugs).map(d => d.category || 'その他'));
+  const cats = catOrder.filter(c => used.has(c));
+  const btn = (label, val) => `<button onclick="drugPickerCat='${val}';renderDrugPickerCats();renderDrugPicker()" style="background:${drugPickerCat===val?'var(--accent)':'var(--bg3)'};color:${drugPickerCat===val?'#000':'var(--text)'};border:1px solid ${drugPickerCat===val?'var(--accent)':'var(--border)'};border-radius:14px;padding:5px 12px;font-size:12px;cursor:pointer;white-space:nowrap;">${label}</button>`;
+  document.getElementById('drug-picker-cats').innerHTML = btn('すべて','') + cats.map(c => btn(c, c)).join('');
+}
+function renderDrugPicker() {
+  const q = document.getElementById('drug-picker-search').value.trim().toLowerCase();
+  let list = Object.entries(drugs);
+  if (drugPickerCat) list = list.filter(([,d]) => (d.category||'その他') === drugPickerCat);
+  if (q) list = list.filter(([,d]) => (d.name||'').toLowerCase().includes(q));
+  list.sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'','ja'));
+  const el = document.getElementById('drug-picker-list');
+  if (!list.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:13px;">該当する薬品がありません</div>'; return; }
+  el.innerHTML = list.map(([id,d]) => {
+    const geki = d.regulation && d.regulation.geki;
+    const doku = d.regulation && d.regulation.doku;
+    const badge = doku ? '<span style="color:#e74c3c;font-size:10px;border:1px solid #e74c3c;border-radius:50%;padding:0 3px;margin-left:5px;">毒</span>'
+                : geki ? '<span style="color:#e74c3c;font-size:10px;border:1px solid #e74c3c;border-radius:50%;padding:0 3px;margin-left:5px;">劇</span>' : '';
+    return `<div onclick="pickDrug('${id}')" style="padding:11px 8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:14px;">${d.name}${badge}</span>
+      <span style="font-size:11px;color:var(--muted);">${d.category||''}</span>
+    </div>`;
+  }).join('');
+}
+function pickDrug(id) {
+  if (drugPickerCallback) drugPickerCallback(id);
+  closeModal('modal-drug-picker');
+}
+
+function pickForStockIn() {
+  openDrugPicker((id) => {
+    const d = drugs[id];
+    if (!d) return;
+    const sel = document.getElementById('stockin-drug-id');
+    sel.innerHTML = `<option value="${id}">${d.name}</option>`;
+    sel.value = id;
+    document.getElementById('stockin-drug-btn').textContent = `${d.name}（残:${fmtStockForm(d, calcStock(id))}）`;
+    document.getElementById('stockin-drug-btn').style.color = 'var(--text)';
+    updateStockInUnit();
+  });
+}
+
 // カテゴリー別にグループ化した薬品オプション（optgroup）
 function drugOptionsGrouped(includeUnit) {
   const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','麻酔薬','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','塗布薬','ワクチン','駆虫剤','その他'];
@@ -1678,13 +1745,11 @@ function drugOptionsGrouped(includeUnit) {
 }
 
 function addTreatDrugRow() {
-  const drugOptions = drugOptionsGrouped(true);
   const row = document.createElement('div');
   row.className = 'drug-row';
   row.innerHTML = `
-    <select onchange="onDrugRowChange(this)" style="flex:1;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
-      <option value="">薬品を選択...</option>${drugOptions}
-    </select>
+    <select onchange="onDrugRowChange(this)" style="display:none;"><option value="">薬品を選択...</option></select>
+    <button type="button" onclick="pickForRow(this,'drug')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 10px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">薬品を選択...</button>
     <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
       <input type="number" min="0.1" step="0.1" value="1" placeholder="量"
         style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
@@ -1693,6 +1758,24 @@ function addTreatDrugRow() {
     </div>
     <button onclick="this.parentElement.remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>`;
   document.getElementById('treat-drug-rows').appendChild(row);
+}
+
+// 行の薬品ピッカーを開く。type: 'drug'（使用薬品）/'oki'（置き薬）
+function pickForRow(btn, type) {
+  const row = btn.closest(type === 'oki' ? '.toki-row' : '.drug-row');
+  openDrugPicker((id) => {
+    const d = drugs[id];
+    if (!d) return;
+    const sel = row.querySelector('select');
+    // 隠しselectにオプションを入れて値をセット（既存ロジック互換）
+    sel.innerHTML = `<option value="${id}">${d.name}</option>`;
+    sel.value = id;
+    btn.textContent = d.name;
+    btn.style.color = 'var(--text)';
+    // 変更ハンドラを呼ぶ
+    if (type === 'oki') onTreatOkiRowChange(sel);
+    else onDrugRowChange(sel);
+  });
 }
 
 function onDrugRowChange(sel) {
@@ -1910,17 +1993,10 @@ function initStockInModal() {
   document.getElementById('stockin-qty').value = '1';
   document.getElementById('stockin-memo').value = '';
   const sel = document.getElementById('stockin-drug-id');
-  sel.innerHTML = '<option value="">薬品を選択...</option>' + (function(){
-    const catOrder = ['抗生剤','抗コクシジウム剤','解熱・鎮痛・抗炎症剤','ホルモン剤','ビタミン剤','鉄剤','肝機能改善剤','胃粘膜保護剤','気管支拡張薬','強心・呼吸促進剤','止血剤','鎮痙剤','麻酔薬','点滴','整腸・止瀉剤','皮膚保護剤','尿路結石溶解剤','抗凝固剤','消毒剤','塗布薬','ワクチン','駆虫剤','その他'];
-    const grouped = {};
-    Object.entries(drugs).forEach(([id, d]) => { const c=d.category||'その他'; (grouped[c]=grouped[c]||[]).push([id,d]); });
-    const cats = catOrder.filter(c=>grouped[c]).concat(Object.keys(grouped).filter(c=>!catOrder.includes(c)));
-    return cats.map(cat => {
-      const opts = grouped[cat].sort((a,b)=>(a[1].name||'').localeCompare(b[1].name||'','ja'))
-        .map(([id,d])=>`<option value="${id}">${d.name}（残:${fmtStockForm(d, calcStock(id))}）</option>`).join('');
-      return `<optgroup label="${cat}">${opts}</optgroup>`;
-    }).join('');
-  })();
+  sel.innerHTML = '<option value="">薬品を選択...</option>';
+  sel.value = '';
+  const btn = document.getElementById('stockin-drug-btn');
+  if (btn) { btn.textContent = '薬品を選択...'; btn.style.color = 'var(--muted)'; }
   setStockInMode('in');
   updateStockInUnit();
 }
@@ -1936,7 +2012,14 @@ function enforceStockInStep(input) {
 function openStockInFor(drugId) {
   openModal('modal-stock-in');
   const sel = document.getElementById('stockin-drug-id');
-  if (sel) { sel.value = drugId; updateStockInUnit(); }
+  const d = drugs[drugId];
+  if (sel && d) {
+    sel.innerHTML = `<option value="${drugId}">${d.name}</option>`;
+    sel.value = drugId;
+    const btn = document.getElementById('stockin-drug-btn');
+    if (btn) { btn.textContent = `${d.name}（残:${fmtStockForm(d, calcStock(drugId))}）`; btn.style.color = 'var(--text)'; }
+    updateStockInUnit();
+  }
 }
 
 function setStockInMode(mode) {
