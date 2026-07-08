@@ -3007,8 +3007,8 @@ function loadDrugPreset(diseaseCode) {
   if (dp.pairs) {
     dp.pairs.forEach((p, pi) => {
       const aId = findDrugIdByName(p.a.name), bId = findDrugIdByName(p.b.name);
-      const aUnit = p.a.unit || (aId && drugs[aId] ? drugs[aId].unit : '') || '';
-      const bUnit = p.b.unit || (bId && drugs[bId] ? drugs[bId].unit : '') || '';
+      const aUnit = p.a.unit || displayUnit(aId ? drugs[aId] : null) || '';
+      const bUnit = p.b.unit || displayUnit(bId ? drugs[bId] : null) || '';
       html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
         <div style="font-size:10px;color:var(--muted);margin-bottom:4px;">${p.label}</div>
         <div onclick="toggleDpPair(${pi},'a')" style="display:flex;align-items:center;cursor:pointer;">
@@ -3035,7 +3035,7 @@ function loadDrugPreset(diseaseCode) {
   (dp.singles || []).forEach((s, i) => {
     const drugId = findDrugIdByName(s.name);
     const d = drugId ? drugs[drugId] : null;
-    const unit = d?.unit || '';
+    const unit = displayUnit(d);
     // 抗生剤の投与日数判定：3日目まではデフォルトON、4日目以降はOFF＋警告
     let checked = s.checked;
     let note = s.note || '';
@@ -3055,6 +3055,12 @@ function loadDrugPreset(diseaseCode) {
       qtyVal = auto;
       const rt = d?.route ? '・' + d.route : '';
       note = (note ? note + ' ' : '') + `自動計算 ${d.dosePerKg}mL/kg${rt}`;
+    }
+    // アンプル剤で量未指定なら1A固定
+    const dForm = d ? (d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '')) : '';
+    if (dForm === 'ampoule' && (!qtyVal || qtyVal === 0)) {
+      qtyVal = 1;
+      if (d.volume > 0) note = (note ? note + ' ' : '') + `1A=${d.volume}ml`;
     }
     html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
       <div onclick="toggleDrugPreset('dp_single_${i}')" style="display:flex;align-items:center;cursor:pointer;">
@@ -3254,9 +3260,16 @@ function calcDayNum(diseaseCode) {
 }
 
 // 薬品名から単位を取得
+// 表示用の単位（アンプルはA、点滴ℓはℓ、それ以外はunit）
+function displayUnit(d) {
+  if (!d) return '';
+  const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+  if (form === 'ampoule') return 'A';
+  return d.unit || '';
+}
 function unitOf(name) {
   const id = findDrugIdByName(name);
-  return id && drugs[id] ? (drugs[id].unit || '') : '';
+  return id && drugs[id] ? displayUnit(drugs[id]) : '';
 }
 
 // 🧰置き薬トグルボタンのHTMLを返す（共通）
