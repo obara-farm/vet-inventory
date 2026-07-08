@@ -1847,26 +1847,21 @@ function openTreatDrugPicker() {
 function addTreatDrugRow(presetId) {
   const row = document.createElement('div');
   row.className = 'drug-row';
-  row.style.flexDirection = 'column';
-  row.style.alignItems = 'stretch';
-  row.style.gap = '3px';
   const d = presetId ? drugs[presetId] : null;
   row.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center;">
-      <select onchange="onDrugRowChange(this)" style="display:none;"><option value="">薬品を選択...</option>${d?`<option value="${presetId}" selected>${d.name}</option>`:''}</select>
-      <button type="button" onclick="pickForRow(this,'drug')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--border);color:${d?'var(--text)':'var(--muted)'};border-radius:8px;padding:9px 10px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d?d.name:'薬品を選択...'}</button>
-      <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
-        <input type="number" min="0.1" step="0.1" value="1" placeholder="量"
-          style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
-          oninput="updateWdPreview()">
-        <span class="drug-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
-      </div>
-      <button onclick="this.closest('.drug-row').remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>
+    <select onchange="onDrugRowChange(this)" style="display:none;"><option value="">薬品を選択...</option>${d?`<option value="${presetId}" selected>${d.name}</option>`:''}</select>
+    <button type="button" onclick="pickForRow(this,'drug')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--border);color:${d?'var(--text)':'var(--muted)'};border-radius:8px;padding:9px 6px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d?d.name:'薬品を選択...'}</button>
+    <div style="display:flex;align-items:center;gap:1px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 4px;">
+      <input type="number" min="0.1" step="0.1" value="1" placeholder="量"
+        style="width:42px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
+        oninput="updateWdPreview()">
+      <span class="drug-unit-label" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
-    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;padding-left:2px;">
-      <input type="checkbox" class="drug-from-oki" style="width:15px;height:15px;accent-color:var(--warn);flex:none;">
-      置き薬から使用（在庫を減らさない・カルテには記録）
-    </label>`;
+    <label title="置き薬から使用（在庫を減らさない）" style="display:flex;flex-direction:column;align-items:center;gap:1px;font-size:9px;color:var(--warn);cursor:pointer;flex:none;">
+      <input type="checkbox" class="drug-from-oki" style="width:16px;height:16px;accent-color:var(--warn);flex:none;margin:0;">
+      置
+    </label>
+    <button onclick="this.closest('.drug-row').remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 7px;cursor:pointer;font-size:13px;flex:none;">✕</button>`;
   document.getElementById('treat-drug-rows').appendChild(row);
   if (d) { const sel = row.querySelector('select'); onDrugRowChange(sel); }
 }
@@ -2945,17 +2940,16 @@ function loadDrugPreset(diseaseCode) {
     }
     html += `<div style="padding:6px 0;border-bottom:1px solid var(--border);">
       <div onclick="toggleDrugPreset('dp_single_${i}')" style="display:flex;align-items:center;cursor:pointer;">
-        <span id="box_dp_single_${i}" style="width:22px;height:22px;border:2px solid ${checked?'var(--accent)':'var(--border)'};background:${checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${checked?'✓':''}</span>
+        <span id="box_dp_single_${i}" style="width:22px;height:22px;border:2px solid ${checked?'var(--accent)':'var(--border)'};background:${checked?'var(--accent)':'transparent'};border-radius:5px;margin-right:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${checked?'✓':''}</span>
         <input type="checkbox" id="dp_single_${i}" ${checked?'checked':''} data-drug-id="${drugId||''}" data-name="${s.name}" data-nostock="${s.noStock?1:0}" style="display:none;">
-        <span style="font-size:14px;flex:1;">${s.name}</span>
-        <input type="number" id="dp_single_qty_${i}" value="${qtyVal}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
-        <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${unit}</span>
+        <span style="font-size:14px;flex:1;min-width:0;">${s.name}</span>
+        <input type="number" id="dp_single_qty_${i}" value="${qtyVal}" step="0.1" onclick="event.stopPropagation()" style="width:48px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
+        <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unit}</span>
+        <label onclick="event.stopPropagation()" title="置き薬から使用（在庫を減らさない）" style="display:flex;flex-direction:column;align-items:center;gap:1px;font-size:9px;color:var(--warn);cursor:pointer;flex:none;margin-left:4px;">
+          <input type="checkbox" id="dp_single_oki_${i}" style="width:16px;height:16px;accent-color:var(--warn);margin:0;">置
+        </label>
       </div>
-      ${note ? `<div style="font-size:10px;color:${dayNum>=4&&s.note&&s.note.includes('3日間')?'var(--danger)':'var(--warn)'};margin-left:32px;">${note}</div>` : ''}
-      <label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);cursor:pointer;margin-left:32px;margin-top:3px;">
-        <input type="checkbox" id="dp_single_oki_${i}" style="width:14px;height:14px;accent-color:var(--warn);flex:none;">
-        置き薬から使用（在庫を減らさない）
-      </label>
+      ${note ? `<div style="font-size:10px;color:${dayNum>=4&&s.note&&s.note.includes('3日間')?'var(--danger)':'var(--warn)'};margin-left:30px;">${note}</div>` : ''}
     </div>`;
   });
 
