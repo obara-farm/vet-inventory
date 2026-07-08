@@ -1496,12 +1496,16 @@ function addTreatOkiRow() {
   row.className = 'toki-row';
   row.style.marginBottom = '6px';
   row.innerHTML = `
-    <div style="display:flex;gap:8px;align-items:center;">
+    <div style="display:flex;gap:6px;align-items:center;">
       <select onchange="onTreatOkiRowChange(this)" style="flex:1;background:var(--bg3);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
         <option value="">置き薬を選択...</option>${drugOptions}
       </select>
+      <select class="toki-unit-mode" onchange="onTreatOkiUnitMode(this)" style="background:var(--bg3);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:8px 4px;font-size:12px;">
+        <option value="bara">バラ</option>
+        <option value="box">箱</option>
+      </select>
       <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--warn);border-radius:8px;background:var(--bg3);padding:0 6px;">
-        <input type="number" min="1" step="1" value="1" style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;">
+        <input type="number" min="1" step="1" value="1" style="width:42px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;">
         <span class="toki-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
       </div>
       <button onclick="this.closest('.toki-row').remove();updateTreatOkiCountVisibility()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>
@@ -1539,12 +1543,26 @@ function bigUnitToInternal(d, big) {
 
 function onTreatOkiRowChange(sel) {
   const row = sel.closest('.toki-row');
+  updateOkiRowUnitLabel(row);
+}
+function onTreatOkiUnitMode(sel) {
+  const row = sel.closest('.toki-row');
+  updateOkiRowUnitLabel(row);
+}
+function updateOkiRowUnitLabel(row) {
+  const sel = row.querySelector('select');
+  const modeSel = row.querySelector('.toki-unit-mode');
   const unitLabel = row.querySelector('.toki-unit-label');
   const qtyInput = row.querySelector('input[type="number"]');
+  const mode = modeSel ? modeSel.value : 'bara';
   if (sel.value && drugs[sel.value]) {
     const d = drugs[sel.value];
-    unitLabel.textContent = bigUnitLabel(d);
-    qtyInput.step = '1';  // 置き薬はバラ売り単位（整数）
+    if (mode === 'box') {
+      unitLabel.textContent = d.perBox > 0 ? `箱(${d.perBox}${bigUnitLabel(d)})` : '箱';
+    } else {
+      unitLabel.textContent = bigUnitLabel(d);
+    }
+    qtyInput.step = '1';
     qtyInput.min = '1';
   } else { unitLabel.textContent = ''; }
 }
@@ -1736,7 +1754,8 @@ function saveTreat() {
   tOkiRows.forEach(row => {
     const sel = row.querySelector('select');
     const qty = parseFloat(row.querySelector('input')?.value) || 0;
-    if (sel?.value && qty > 0) tOkiList.push({ drugId: sel.value, qty });
+    const mode = row.querySelector('.toki-unit-mode')?.value || 'bara';
+    if (sel?.value && qty > 0) tOkiList.push({ drugId: sel.value, qty, boxMode: mode === 'box' });
   });
   const tOkiCount = document.getElementById('treat-oki-count')?.value.trim() || '';
 
@@ -1810,10 +1829,14 @@ function saveTreat() {
       const drug = drugs[o.drugId];
       if (!drug) return '';
       const bu = bigUnitLabel(drug);
-      const internal = bigUnitToInternal(drug, o.qty);
-      // ml換算がある形態はカッコで総量も表示
       const form = drug.form || (drug.stockType === 'ml' && drug.volume > 0 ? 'vial' : '');
       const showMl = (form === 'vial' || form === 'drip') && drug.volume > 0;
+      if (o.boxMode) {
+        const totalBig = o.qty * (drug.perBox || 1);
+        const disp = showMl ? `${o.qty}箱(${bigUnitToInternal(drug, totalBig)}ml)` : `${o.qty}箱(${totalBig}${bu})`;
+        return `${drug.name} ${disp}`;
+      }
+      const internal = bigUnitToInternal(drug, o.qty);
       const disp = showMl ? `${o.qty}${bu}(${internal}ml)` : `${o.qty}${bu}`;
       return `${drug.name} ${disp}`;
     }).filter(Boolean).join('、');
@@ -1850,10 +1873,13 @@ function saveTreat() {
       const drug = drugs[o.drugId];
       if (!drug) return;
       const bu = bigUnitLabel(drug);
-      const actualQty = bigUnitToInternal(drug, o.qty);  // 内部量（ml/A/包/袋/本）
       const form = drug.form || (drug.stockType === 'ml' && drug.volume > 0 ? 'vial' : '');
       const showMl = (form === 'vial' || form === 'drip') && drug.volume > 0;
-      const disp = showMl ? `${o.qty}${bu}(${actualQty}ml)` : `${o.qty}${bu}`;
+      const bigCount = o.boxMode ? o.qty * (drug.perBox || 1) : o.qty;  // 大単位の総数
+      const actualQty = bigUnitToInternal(drug, bigCount);              // 内部量
+      let disp;
+      if (o.boxMode) disp = showMl ? `${o.qty}箱(${actualQty}ml)` : `${o.qty}箱(${bigCount}${bu})`;
+      else disp = showMl ? `${o.qty}${bu}(${actualQty}ml)` : `${o.qty}${bu}`;
       const okiMemo = `置き薬 ${disp}${tOkiCount ? '（'+tOkiCount+'）' : ''}`;
       const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6) + 'oki';
       updates['movements/' + movId] = { drugId: o.drugId, type: 'dispense', qty: -actualQty, date, cowId, treatId, memo: okiMemo };
