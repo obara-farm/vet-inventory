@@ -1857,7 +1857,7 @@ function addTreatDrugRow(presetId) {
         oninput="updateWdPreview()">
       <span class="drug-unit-label" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
-    <button type="button" class="from-oki-toggle" data-on="0" onclick="toggleFromOki(this)" title="置き薬から使用（在庫を減らさない）" style="flex:none;width:34px;height:34px;border:1px solid var(--border);background:var(--bg3);border-radius:8px;cursor:pointer;font-size:15px;opacity:0.4;">💼</button>
+    <button type="button" class="from-oki-toggle" data-on="0" onclick="toggleFromOki(this)" title="置き薬から使用（在庫を減らさない）" style="flex:none;width:34px;height:34px;border:1px solid var(--border);background:var(--bg2);border-radius:8px;cursor:pointer;font-size:16px;opacity:0.5;filter:grayscale(1);">🧰</button>
     <button onclick="this.closest('.drug-row').remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 7px;cursor:pointer;font-size:13px;flex:none;">✕</button>`;
   document.getElementById('treat-drug-rows').appendChild(row);
   if (d) { const sel = row.querySelector('select'); onDrugRowChange(sel); }
@@ -1886,11 +1886,13 @@ function toggleFromOki(btn) {
   const on = btn.dataset.on === '1';
   btn.dataset.on = on ? '0' : '1';
   if (on) {
-    btn.style.opacity = '0.4';
-    btn.style.background = 'var(--bg3)';
+    btn.style.opacity = '0.5';
+    btn.style.filter = 'grayscale(1)';
+    btn.style.background = 'var(--bg2)';
     btn.style.borderColor = 'var(--border)';
   } else {
     btn.style.opacity = '1';
+    btn.style.filter = 'none';
     btn.style.background = 'var(--warn)';
     btn.style.borderColor = 'var(--warn)';
   }
@@ -2911,15 +2913,17 @@ function loadDrugPreset(diseaseCode) {
           <span id="box_dp_pair_${pi}_a" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
           <input type="checkbox" id="dp_pair_${pi}_a" data-drug-id="${aId||''}" data-name="${p.a.name}" style="display:none;">
           <span style="font-size:14px;flex:1;">${p.a.name}</span>
-          <input type="number" id="dp_pair_qty_${pi}_a" value="${p.a.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
-          <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${aUnit}</span>
+          <input type="number" id="dp_pair_qty_${pi}_a" value="${p.a.qty}" step="0.1" onclick="event.stopPropagation()" style="width:48px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
+          <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${aUnit}</span>
+          <button type="button" class="dp-oki-toggle" data-on="0" id="dp_pair_oki_${pi}_a" onclick="event.stopPropagation();toggleFromOki(this)" title="置き薬から使用（在庫を減らさない）" style="flex:none;margin-left:3px;width:30px;height:30px;border:1px solid var(--border);background:var(--bg2);border-radius:7px;cursor:pointer;font-size:14px;opacity:0.5;filter:grayscale(1);">🧰</button>
         </div>
         <div onclick="toggleDpPair(${pi},'b')" style="display:flex;align-items:center;cursor:pointer;margin-top:4px;">
           <span id="box_dp_pair_${pi}_b" style="width:20px;height:20px;border:2px solid var(--border);background:transparent;border-radius:50%;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:13px;"></span>
           <input type="checkbox" id="dp_pair_${pi}_b" data-drug-id="${bId||''}" data-name="${p.b.name}" style="display:none;">
           <span style="font-size:14px;flex:1;">${p.b.name}</span>
-          <input type="number" id="dp_pair_qty_${pi}_b" value="${p.b.qty}" step="0.1" onclick="event.stopPropagation()" style="width:55px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
-          <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${bUnit}</span>
+          <input type="number" id="dp_pair_qty_${pi}_b" value="${p.b.qty}" step="0.1" onclick="event.stopPropagation()" style="width:48px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
+          <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${bUnit}</span>
+          <button type="button" class="dp-oki-toggle" data-on="0" id="dp_pair_oki_${pi}_b" onclick="event.stopPropagation();toggleFromOki(this)" title="置き薬から使用（在庫を減らさない）" style="flex:none;margin-left:3px;width:30px;height:30px;border:1px solid var(--border);background:var(--bg2);border-radius:7px;cursor:pointer;font-size:14px;opacity:0.5;filter:grayscale(1);">🧰</button>
         </div>
       </div>`;
     });
@@ -2958,7 +2962,7 @@ function loadDrugPreset(diseaseCode) {
         <input type="number" id="dp_single_qty_${i}" value="${qtyVal}" step="0.1" onclick="event.stopPropagation()" style="width:48px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
         <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unit}</span>
         <label onclick="event.stopPropagation()" title="置き薬から使用（在庫を減らさない）" style="flex:none;margin-left:4px;">
-          <button type="button" class="dp-oki-toggle" data-on="0" id="dp_single_oki_${i}" onclick="event.stopPropagation();toggleFromOki(this)" style="width:32px;height:32px;border:1px solid var(--border);background:var(--bg3);border-radius:8px;cursor:pointer;font-size:14px;opacity:0.4;">💼</button>
+          <button type="button" class="dp-oki-toggle" data-on="0" id="dp_single_oki_${i}" onclick="event.stopPropagation();toggleFromOki(this)" style="width:32px;height:32px;border:1px solid var(--border);background:var(--bg2);border-radius:8px;cursor:pointer;font-size:15px;opacity:0.5;filter:grayscale(1);">🧰</button>
         </label>
       </div>
       ${note ? `<div style="font-size:10px;color:${dayNum>=4&&s.note&&s.note.includes('3日間')?'var(--danger)':'var(--warn)'};margin-left:30px;">${note}</div>` : ''}
@@ -3088,11 +3092,12 @@ function applyDrugPresetToRows() {
   }
   const selected = [];
   // 排他ペア
-  wrap.querySelectorAll('input[id^="dp_pair_"]:not([id*="qty"])').forEach(chk => {
+  wrap.querySelectorAll('input[id^="dp_pair_"]:not([id*="qty"]):not([id*="oki"])').forEach(chk => {
     if (chk.checked && chk.dataset.drugId) {
       const suffix = chk.id.replace('dp_pair_', '');
       const qty = parseFloat(document.getElementById('dp_pair_qty_' + suffix)?.value) || 0;
-      if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
+      const fromOki = document.getElementById('dp_pair_oki_' + suffix)?.dataset.on === '1';
+      if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty, fromOki });
     }
   });
   // 単独薬
