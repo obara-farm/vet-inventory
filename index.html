@@ -2952,6 +2952,10 @@ function loadDrugPreset(diseaseCode) {
         <span style="font-size:12px;color:var(--muted);margin-left:4px;width:28px;">${unit}</span>
       </div>
       ${note ? `<div style="font-size:10px;color:${dayNum>=4&&s.note&&s.note.includes('3日間')?'var(--danger)':'var(--warn)'};margin-left:32px;">${note}</div>` : ''}
+      <label style="display:flex;align-items:center;gap:5px;font-size:10px;color:var(--muted);cursor:pointer;margin-left:32px;margin-top:3px;">
+        <input type="checkbox" id="dp_single_oki_${i}" style="width:14px;height:14px;accent-color:var(--warn);flex:none;">
+        置き薬から使用（在庫を減らさない）
+      </label>
     </div>`;
   });
 
@@ -3086,16 +3090,17 @@ function applyDrugPresetToRows() {
     }
   });
   // 単独薬
-  wrap.querySelectorAll('input[id^="dp_single_"]:not([id*="qty"])').forEach(chk => {
+  wrap.querySelectorAll('input[id^="dp_single_"]:not([id*="qty"]):not([id*="oki"])').forEach(chk => {
     if (chk.checked && chk.dataset.drugId) {
       const i = chk.id.replace('dp_single_', '');
       const qty = parseFloat(document.getElementById('dp_single_qty_' + i)?.value) || 0;
       const noStock = chk.dataset.nostock === '1';
+      const fromOki = document.getElementById('dp_single_oki_' + i)?.checked || false;
       if (noStock) {
         // 塗布薬など：在庫減算しないが記録には残す（qty 0でも可）
-        selected.push({ drugId: chk.dataset.drugId, qty, noStock: true });
+        selected.push({ drugId: chk.dataset.drugId, qty, noStock: true, fromOki });
       } else if (qty > 0) {
-        selected.push({ drugId: chk.dataset.drugId, qty });
+        selected.push({ drugId: chk.dataset.drugId, qty, fromOki });
       }
     }
   });
