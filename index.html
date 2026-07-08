@@ -295,6 +295,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <input type="hidden" id="treat-cow-id">
       <div id="treat-cow-selected" style="font-size:12px;color:var(--accent);margin-top:4px;"></div>
       <div id="treat-cow-info" style="font-size:11px;color:var(--info);margin-top:3px;display:none;"></div>
+      <div id="treat-newborn-wrap" style="display:none;margin-top:6px;">
+        <button type="button" id="treat-newborn-btn" onclick="toggleNewborn()" style="width:100%;background:var(--bg3);border:1px dashed var(--info);color:var(--info);border-radius:8px;padding:8px;font-size:12px;cursor:pointer;">🐄 この母牛の新生子として登録（耳標なし・後で入力）</button>
+      </div>
+      <div id="treat-newborn-note" style="display:none;font-size:12px;color:var(--warn);margin-top:5px;background:var(--bg3);border:1px solid var(--warn);border-radius:8px;padding:8px;"></div>
     </div>
     <div class="form-group" id="treat-weight-wrap" style="display:none;">
       <label>推定体重（kg）※薬用量の自動計算に使用</label>
@@ -965,7 +969,19 @@ function fmtDate(s) {
   return `${y}/${m}/${d}`;
 }
 
+function newbornLabel(cowId) {
+  // newborn_ で始まる仮IDは、処置レコードのnewborn情報から表示名を作る
+  if (!cowId || !cowId.startsWith('newborn_')) return null;
+  const t = Object.values(treatments).find(t => t.cowId === cowId && t.newborn);
+  const nb = t?.newborn;
+  if (!nb) return '新生子（耳標未登録）';
+  if (nb.earTag) return `${nb.earTag}（${nb.motherName}の子）`;
+  return `${nb.motherName}の新生子（耳標未登録）`;
+}
+
 function cowName(cowId) {
+  const nb = newbornLabel(cowId);
+  if (nb) return '🐄 ' + nb;
   const all = getAllAnimals();
   const c = all.find(c => c.id === cowId || c.nationalId === cowId);
   if (!c) return cowId;
@@ -974,6 +990,8 @@ function cowName(cowId) {
 }
 
 function cowDisplayShort(cowId) {
+  const nb = newbornLabel(cowId);
+  if (nb) return '🐄 ' + nb;
   const all = getAllAnimals();
   const c = all.find(c => c.id === cowId);
   if (!c) return cowId;
@@ -1470,6 +1488,15 @@ function initTreatModal() {
   if (okiCountWrap) okiCountWrap.style.display = 'none';
   const dpWrap = document.getElementById('treat-drug-preset');
   if (dpWrap) { dpWrap.style.display = 'none'; dpWrap.innerHTML = ''; }
+  // 新生子登録状態をリセット
+  treatNewborn = false;
+  treatMotherId = '';
+  const nbWrap = document.getElementById('treat-newborn-wrap');
+  if (nbWrap) nbWrap.style.display = 'none';
+  const nbNote = document.getElementById('treat-newborn-note');
+  if (nbNote) { nbNote.style.display = 'none'; nbNote.textContent = ''; }
+  const nbBtn = document.getElementById('treat-newborn-btn');
+  if (nbBtn) { nbBtn.style.background = 'var(--bg3)'; nbBtn.style.color = 'var(--info)'; nbBtn.textContent = '🐄 この母牛の新生子として登録（耳標なし・後で入力）'; }
   initDiseaseSelect();
   setTreatKind('chiryo');
 }
@@ -1710,6 +1737,53 @@ function selectTreatCow(cowId) {
     wWrap.style.display = '';
   }
   // 牛が変わったら薬品プリセットの投与日数を再計算
+  const dcode = document.getElementById('treat-disease-code')?.value;
+  if (dcode && DRUG_PRESETS[dcode]) loadDrugPreset(dcode);
+  // 新生子登録ボタン：親牛（母牛）を選んだときだけ表示
+  treatNewborn = false;
+  treatMotherId = '';
+  const nbWrap = document.getElementById('treat-newborn-wrap');
+  const nbNote = document.getElementById('treat-newborn-note');
+  const nbBtn = document.getElementById('treat-newborn-btn');
+  if (nbNote) { nbNote.style.display = 'none'; nbNote.textContent = ''; }
+  if (nbBtn) { nbBtn.style.background = 'var(--bg3)'; nbBtn.style.color = 'var(--info)'; }
+  if (nbWrap) nbWrap.style.display = (c && !c.isCalf) ? '' : 'none';
+}
+
+// ===== 新生子（耳標なし）登録 =====
+let treatNewborn = false;
+let treatMotherId = '';
+function toggleNewborn() {
+  const motherId = document.getElementById('treat-cow-id').value;
+  if (!motherId) return;
+  treatNewborn = !treatNewborn;
+  const nbBtn = document.getElementById('treat-newborn-btn');
+  const nbNote = document.getElementById('treat-newborn-note');
+  const wWrap = document.getElementById('treat-weight-wrap');
+  const wInput = document.getElementById('treat-weight');
+  const wNote = document.getElementById('treat-weight-note');
+  if (treatNewborn) {
+    treatMotherId = motherId;
+    const mName = cowDisplayShort(motherId);
+    nbBtn.style.background = 'var(--info)';
+    nbBtn.style.color = '#000';
+    nbBtn.textContent = '🐄 新生子として登録中（タップで解除）';
+    nbNote.style.display = '';
+    nbNote.textContent = `母牛「${mName}」の新生子として登録します。耳標は後から登録できます。推定体重50kgで薬用量を計算します。`;
+    // 体重を新生子基準50kgに
+    wWrap.style.display = '';
+    wInput.value = 50;
+    wNote.textContent = '新生子：推定体重50kg（やや多め・手修正可）';
+  } else {
+    treatMotherId = '';
+    nbBtn.style.background = 'var(--bg3)';
+    nbBtn.style.color = 'var(--info)';
+    nbBtn.textContent = '🐄 この母牛の新生子として登録（耳標なし・後で入力）';
+    nbNote.style.display = 'none';
+    // 体重を母牛基準に戻す
+    selectTreatCow(motherId);
+  }
+  // プリセットの体重連動を更新
   const dcode = document.getElementById('treat-disease-code')?.value;
   if (dcode && DRUG_PRESETS[dcode]) loadDrugPreset(dcode);
 }
@@ -1971,11 +2045,20 @@ function updateWdPreview() {
 }
 
 function saveTreat() {
-  const cowId = document.getElementById('treat-cow-id').value;
+  let cowId = document.getElementById('treat-cow-id').value;
   const date = document.getElementById('treat-date').value;
   const memo = document.getElementById('treat-memo').value;
   if (!cowId) { alert('牛を選択してください'); return; }
   if (!date) { alert('処置日を入力してください'); return; }
+
+  // 新生子（耳標なし）として登録する場合：母牛に紐づく仮IDを発行
+  let newbornInfo = null;
+  if (treatNewborn && treatMotherId) {
+    const motherName = cowDisplayShort(treatMotherId);
+    const newbornId = 'newborn_' + treatMotherId + '_' + Date.now();
+    newbornInfo = { isNewborn: true, motherId: treatMotherId, motherName, earTag: '' };
+    cowId = newbornId;
+  }
 
   const rows = document.querySelectorAll('#treat-drug-rows .drug-row');
   const drugList = [];
@@ -2107,6 +2190,7 @@ function saveTreat() {
     outcomeDate: document.getElementById('treat-outcome-date')?.value || '',
     wdMeatEnd, wdMilkEnd,
     okiGusuri: tOkiList.length ? { drugs: tOkiList, count: tOkiCount } : null,
+    newborn: newbornInfo || null,
   };
 
   // 診察牛への使用薬品 在庫減算
@@ -2622,6 +2706,16 @@ function openTreatDetail(treatId) {
       <div style="font-size:13px;color:var(--muted);">${fmtDate(t.date)}${t.diseaseName ? '　' + t.diseaseName : ''}</div>
     </div>
     <div style="margin-bottom:12px;">${drugRows}</div>
+    ${t.newborn ? `<div style="margin-bottom:10px;border:1px solid var(--info);border-radius:8px;padding:10px;background:var(--bg3);">
+      <div style="font-size:12px;color:var(--info);margin-bottom:6px;">🐄 新生子（母牛：${t.newborn.motherName}）</div>
+      ${t.newborn.earTag
+        ? `<div style="font-size:13px;">耳標番号：<strong>${t.newborn.earTag}</strong></div>`
+        : `<div style="font-size:11px;color:var(--warn);margin-bottom:6px;">耳標が付いたら番号を登録してください</div>
+           <div style="display:flex;gap:6px;">
+             <input type="text" id="nb-eartag-${treatId}" placeholder="例: c123" style="flex:1;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px;font-size:13px;">
+             <button onclick="saveNewbornEarTag('${treatId}')" class="btn btn-primary btn-sm">登録</button>
+           </div>`}
+    </div>` : ''}
     ${t.memo ? `<div style="font-size:13px;color:var(--muted);margin-bottom:8px;">📝 ${t.memo}</div>` : ''}
     ${meatEnd ? `<div style="font-size:13px;margin-bottom:4px;">🥩 食肉休薬: <span class="${meatActive ? 'text-danger' : 'text-accent'}">${fmtDate(meatEnd)}まで ${meatActive ? '（休薬中）' : '（終了）'}</span></div>` : ''}
     ${milkEnd ? `<div style="font-size:13px;margin-bottom:4px;">🥛 搾乳休薬: <span class="${milkActive ? 'text-danger' : 'text-accent'}">${fmtDate(milkEnd)}まで ${milkActive ? '（休薬中）' : '（終了）'}</span></div>` : ''}
@@ -2648,6 +2742,16 @@ function openTreatDetail(treatId) {
     </div>`;
   document.getElementById('treat-delete-btn').onclick = () => deleteTreat(treatId);
   openModal('modal-treat-detail');
+}
+
+function saveNewbornEarTag(treatId) {
+  const t = treatments[treatId];
+  if (!t || !t.newborn) return;
+  const val = document.getElementById('nb-eartag-' + treatId)?.value.trim();
+  if (!val) { alert('耳標番号を入力してください'); return; }
+  const updates = {};
+  updates['treatments/' + treatId + '/newborn/earTag'] = val;
+  saveVet(updates).then(() => { openTreatDetail(treatId); });
 }
 
 function deleteTreat(treatId) {
