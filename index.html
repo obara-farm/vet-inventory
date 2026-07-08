@@ -3155,6 +3155,11 @@ function unitOf(name) {
   return id && drugs[id] ? (drugs[id].unit || '') : '';
 }
 
+// 🧰置き薬トグルボタンのHTMLを返す（共通）
+function okiToggleBtn(id) {
+  return `<button type="button" class="dp-oki-toggle" data-on="0" id="${id}" onclick="event.stopPropagation();toggleFromOki(this)" title="置き薬から使用（在庫を減らさない）" style="flex:none;margin-left:3px;width:30px;height:30px;border:1px solid var(--border);background:var(--bg2);border-radius:7px;cursor:pointer;font-size:14px;">🧰</button>`;
+}
+
 function renderPneumoniaPreset() {
   const wrap = document.getElementById('treat-drug-preset');
   const dayNum = calcDayNum('031404');
@@ -3195,6 +3200,7 @@ function renderPneumoniaPreset() {
           <span style="font-size:13px;flex:1;">${g.a.name}${g.a.note?`<span style="font-size:10px;color:var(--muted);">（${g.a.note}）</span>`:''}</span>
           <input type="number" id="pn_qty_${gi}_a" value="${pnQty(g.a.name, g.a.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
           <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.a.name)}</span>
+          ${okiToggleBtn(`pn_oki_${gi}_a`)}
         </div>
         ${g.a.days3?dayNote(true):''}
         <div onclick="togglePneumoniaPair(${gi},'b')" style="display:flex;align-items:center;cursor:pointer;margin-top:4px;">
@@ -3203,6 +3209,7 @@ function renderPneumoniaPreset() {
           <span style="font-size:13px;flex:1;">${g.b.name}${g.b.note?`<span style="font-size:10px;color:var(--muted);">（${g.b.note}）</span>`:''}</span>
           <input type="number" id="pn_qty_${gi}_b" value="${pnQty(g.b.name, g.b.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
           <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.b.name)}</span>
+          ${okiToggleBtn(`pn_oki_${gi}_b`)}
         </div>
         <div id="daynote_pn_${gi}_b" style="display:${g.b.days3?'none':'none'};"></div>
       </div>`;
@@ -3215,6 +3222,7 @@ function renderPneumoniaPreset() {
           <span style="font-size:13px;flex:1;">${g.name}</span>
           <input type="number" id="pn_qty_${gi}_s" value="${pnQty(g.name, g.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
           <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(g.name)}</span>
+          ${okiToggleBtn(`pn_oki_${gi}_s`)}
         </div>
       </div>`;
     } else if (g.type === 'antipyretic') {
@@ -3230,6 +3238,7 @@ function renderPneumoniaPreset() {
             <span style="font-size:13px;flex:1;">${o.name}${o.note?`<span style="font-size:10px;color:var(--muted);">（${o.note}）</span>`:''}</span>
             <input type="number" id="pn_qty_${gi}_ap_${oi}_s" value="${pnQty(o.name, o.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
             <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(o.name)}</span>
+            ${okiToggleBtn(`pn_oki_${gi}_ap_${oi}_s`)}
           </div>`;
         }).join('')}
       </div>`;
@@ -3244,6 +3253,7 @@ function renderPneumoniaPreset() {
             <span style="font-size:13px;flex:1;">${o.name}</span>
             <input type="number" id="pn_qty_${gi}_c${oi}" value="${pnQty(o.name, o.qty)}" step="0.1" onclick="event.stopPropagation()" style="width:50px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:right;">
             <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unitOf(o.name)}</span>
+            ${okiToggleBtn(`pn_oki_${gi}_c${oi}`)}
           </div>`;
         }).join('')}
       </div>`;
@@ -3331,7 +3341,10 @@ function applyPneumoniaPreset() {
     // 解熱剤グループが非表示の場合はスキップ
     const parent = chk.closest('[id^="pn_antipyretic_"]');
     if (parent && parent.style.display === 'none') return;
-    if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty });
+    // 🧰置き薬トグル（id: pn_XXX → pn_oki_XXX）
+    const okiId = chk.id.replace('pn_', 'pn_oki_');
+    const fromOki = document.getElementById(okiId)?.dataset.on === '1';
+    if (qty > 0) selected.push({ drugId: chk.dataset.drugId, qty, fromOki });
   });
   return selected;
 }
