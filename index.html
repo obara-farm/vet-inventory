@@ -261,16 +261,17 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
 <!-- ===== モーダル ===== -->
 
 <!-- 処置登録モーダル -->
-<!-- 薬品選択ポップアップ（カテゴリー→薬品） -->
+<!-- 薬品選択ポップアップ（カテゴリー→薬品・複数選択） -->
 <div class="modal-overlay" id="modal-drug-picker" style="z-index:2000;">
   <div class="modal" style="max-width:440px;">
     <div class="modal-title">
-      💊 薬品を選択
+      💊 薬品を選択（複数可）
       <button class="modal-close" onclick="closeModal('modal-drug-picker')">✕</button>
     </div>
     <input type="text" id="drug-picker-search" placeholder="薬品名で検索..." oninput="renderDrugPicker()" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:10px 12px;font-size:14px;margin-bottom:8px;">
     <div id="drug-picker-cats" style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px;"></div>
-    <div id="drug-picker-list" style="max-height:50vh;overflow-y:auto;"></div>
+    <div id="drug-picker-list" style="max-height:44vh;overflow-y:auto;"></div>
+    <button class="btn btn-primary" id="drug-picker-confirm" style="width:100%;margin-top:12px;" onclick="confirmDrugPicker()">選択した薬を追加（<span id="drug-picker-count">0</span>）</button>
   </div>
 </div>
 
@@ -321,7 +322,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <label id="treat-drug-label">使用薬品（複数追加可）</label>
       <div id="treat-drug-preset" style="display:none;margin-bottom:10px;"></div>
       <div id="treat-drug-rows"></div>
-      <button class="btn btn-secondary btn-sm mt8" onclick="addTreatDrugRow()">＋ 薬品を追加</button>
+      <button class="btn btn-secondary btn-sm mt8" onclick="openTreatDrugPicker()">＋ 薬品を選択（複数可）</button>
     </div>
     <div class="form-group" id="treat-disease-large-wrap">
       <label>病名（大分類）</label>
@@ -390,7 +391,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
       <label style="color:var(--warn);">🚜 置き薬（往診時・群全体用に置いていく場合／任意）</label>
       <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">この牛の診察・診断に基づき農場に置いていく薬。カルテに交付記録が残ります。</div>
       <div id="treat-oki-rows"></div>
-      <button class="btn btn-secondary btn-sm mt8" onclick="addTreatOkiRow()" style="border-color:var(--warn);color:var(--warn);">＋ 置き薬を追加</button>
+      <button class="btn btn-secondary btn-sm mt8" onclick="openTreatOkiPicker()" style="border-color:var(--warn);color:var(--warn);">＋ 置き薬を選択（複数可）</button>
       <div id="treat-oki-count-wrap" style="display:none;margin-top:8px;">
         <label style="font-size:12px;">置き薬の対象頭数の目安</label>
         <input type="text" id="treat-oki-count" placeholder="例: 子牛約10頭分" style="width:100%;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;">
@@ -1462,7 +1463,6 @@ function initTreatModal() {
   const dpWrap = document.getElementById('treat-drug-preset');
   if (dpWrap) { dpWrap.style.display = 'none'; dpWrap.innerHTML = ''; }
   initDiseaseSelect();
-  addTreatDrugRow();
   setTreatKind('chiryo');
 }
 
@@ -1502,14 +1502,26 @@ function setHanshokuType(type) {
 }
 
 // 治療モードの置き薬
-function addTreatOkiRow() {
+function openTreatOkiPicker() {
+  openDrugPickerMulti((ids) => {
+    ids.forEach(id => {
+      const exists = Array.from(document.querySelectorAll('#treat-oki-rows .toki-row select'))
+        .some(s => s.value === id);
+      if (!exists) addTreatOkiRow(id);
+    });
+    updateTreatOkiCountVisibility();
+  });
+}
+
+function addTreatOkiRow(presetId) {
+  const d = presetId ? drugs[presetId] : null;
   const row = document.createElement('div');
   row.className = 'toki-row';
   row.style.marginBottom = '6px';
   row.innerHTML = `
     <div style="display:flex;gap:5px;align-items:center;">
-      <select onchange="onTreatOkiRowChange(this)" style="display:none;"><option value="">選択...</option></select>
-      <button type="button" onclick="pickForRow(this,'oki')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--warn);color:var(--muted);border-radius:8px;padding:8px 8px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">置き薬を選択...</button>
+      <select onchange="onTreatOkiRowChange(this)" style="display:none;"><option value="">選択...</option>${d?`<option value="${presetId}" selected>${d.name}</option>`:''}</select>
+      <button type="button" onclick="pickForRow(this,'oki')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--warn);color:${d?'var(--text)':'var(--muted)'};border-radius:8px;padding:8px 8px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d?d.name:'置き薬を選択...'}</button>
       <select class="toki-unit-mode" onchange="onTreatOkiUnitMode(this)" style="flex:none;width:48px;background:var(--bg3);border:1px solid var(--warn);color:var(--text);border-radius:8px;padding:8px 2px;font-size:12px;">
         <option value="bara">バラ</option>
         <option value="box">箱</option>
@@ -1519,6 +1531,7 @@ function addTreatOkiRow() {
       <button onclick="this.closest('.toki-row').remove();updateTreatOkiCountVisibility()" style="flex:none;background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 7px;cursor:pointer;font-size:13px;">✕</button>
     </div>`;
   document.getElementById('treat-oki-rows').appendChild(row);
+  if (d) updateOkiRowUnitLabel(row);
   updateTreatOkiCountVisibility();
 }
 
@@ -1671,15 +1684,32 @@ function selectTreatCow(cowId) {
   if (dcode && DRUG_PRESETS[dcode]) loadDrugPreset(dcode);
 }
 
-// ===== 薬品選択ポップアップ =====
-let drugPickerCallback = null;
+// ===== 薬品選択ポップアップ（複数選択対応） =====
+let drugPickerCallback = null;   // 単一選択用
+let drugPickerMultiCallback = null; // 複数選択用
 let drugPickerCat = '';
-function openDrugPicker(callback) {
+let drugPickerMulti = false;
+let drugPickerSelected = new Set();
+function openDrugPicker(callback) { // 単一選択
+  drugPickerMulti = false;
   drugPickerCallback = callback;
+  drugPickerMultiCallback = null;
+  _openPickerCommon();
+}
+function openDrugPickerMulti(callback) { // 複数選択
+  drugPickerMulti = true;
+  drugPickerMultiCallback = callback;
+  drugPickerCallback = null;
+  drugPickerSelected = new Set();
+  _openPickerCommon();
+}
+function _openPickerCommon() {
   drugPickerCat = '';
   document.getElementById('drug-picker-search').value = '';
+  document.getElementById('drug-picker-confirm').style.display = drugPickerMulti ? '' : 'none';
   renderDrugPickerCats();
   renderDrugPicker();
+  updateDrugPickerCount();
   openModal('modal-drug-picker');
 }
 function renderDrugPickerCats() {
@@ -1702,11 +1732,39 @@ function renderDrugPicker() {
     const doku = d.regulation && d.regulation.doku;
     const badge = doku ? '<span style="color:#e74c3c;font-size:10px;border:1px solid #e74c3c;border-radius:50%;padding:0 3px;margin-left:5px;">毒</span>'
                 : geki ? '<span style="color:#e74c3c;font-size:10px;border:1px solid #e74c3c;border-radius:50%;padding:0 3px;margin-left:5px;">劇</span>' : '';
+    if (drugPickerMulti) {
+      const on = drugPickerSelected.has(id);
+      return `<div onclick="toggleDrugPick('${id}')" style="padding:10px 8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;">
+        <span id="pickbox_${id}" style="width:22px;height:22px;border:2px solid ${on?'var(--accent)':'var(--border)'};background:${on?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${on?'✓':''}</span>
+        <span style="font-size:14px;flex:1;">${d.name}${badge}</span>
+        <span style="font-size:11px;color:var(--muted);">${d.category||''}</span>
+      </div>`;
+    }
     return `<div onclick="pickDrug('${id}')" style="padding:11px 8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
       <span style="font-size:14px;">${d.name}${badge}</span>
       <span style="font-size:11px;color:var(--muted);">${d.category||''}</span>
     </div>`;
   }).join('');
+}
+function toggleDrugPick(id) {
+  if (drugPickerSelected.has(id)) drugPickerSelected.delete(id);
+  else drugPickerSelected.add(id);
+  const box = document.getElementById('pickbox_' + id);
+  if (box) {
+    const on = drugPickerSelected.has(id);
+    box.style.borderColor = on ? 'var(--accent)' : 'var(--border)';
+    box.style.background = on ? 'var(--accent)' : 'transparent';
+    box.textContent = on ? '✓' : '';
+  }
+  updateDrugPickerCount();
+}
+function updateDrugPickerCount() {
+  const el = document.getElementById('drug-picker-count');
+  if (el) el.textContent = drugPickerSelected.size;
+}
+function confirmDrugPicker() {
+  if (drugPickerMultiCallback) drugPickerMultiCallback(Array.from(drugPickerSelected));
+  closeModal('modal-drug-picker');
 }
 function pickDrug(id) {
   if (drugPickerCallback) drugPickerCallback(id);
@@ -1744,12 +1802,25 @@ function drugOptionsGrouped(includeUnit) {
   }).join('');
 }
 
-function addTreatDrugRow() {
+function openTreatDrugPicker() {
+  openDrugPickerMulti((ids) => {
+    ids.forEach(id => {
+      // 既に行にある薬はスキップ
+      const exists = Array.from(document.querySelectorAll('#treat-drug-rows .drug-row select'))
+        .some(s => s.value === id);
+      if (!exists) addTreatDrugRow(id);
+    });
+    updateWdPreview();
+  });
+}
+
+function addTreatDrugRow(presetId) {
   const row = document.createElement('div');
   row.className = 'drug-row';
+  const d = presetId ? drugs[presetId] : null;
   row.innerHTML = `
-    <select onchange="onDrugRowChange(this)" style="display:none;"><option value="">薬品を選択...</option></select>
-    <button type="button" onclick="pickForRow(this,'drug')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--border);color:var(--muted);border-radius:8px;padding:9px 10px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">薬品を選択...</button>
+    <select onchange="onDrugRowChange(this)" style="display:none;"><option value="">薬品を選択...</option>${d?`<option value="${presetId}" selected>${d.name}</option>`:''}</select>
+    <button type="button" onclick="pickForRow(this,'drug')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--border);color:${d?'var(--text)':'var(--muted)'};border-radius:8px;padding:9px 10px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d?d.name:'薬品を選択...'}</button>
     <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
       <input type="number" min="0.1" step="0.1" value="1" placeholder="量"
         style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
@@ -1758,6 +1829,7 @@ function addTreatDrugRow() {
     </div>
     <button onclick="this.parentElement.remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>`;
   document.getElementById('treat-drug-rows').appendChild(row);
+  if (d) { const sel = row.querySelector('select'); onDrugRowChange(sel); }
 }
 
 // 行の薬品ピッカーを開く。type: 'drug'（使用薬品）/'oki'（置き薬）
