@@ -1857,10 +1857,7 @@ function addTreatDrugRow(presetId) {
         oninput="updateWdPreview()">
       <span class="drug-unit-label" style="font-size:11px;color:var(--muted);white-space:nowrap;"></span>
     </div>
-    <label title="置き薬から使用（在庫を減らさない）" style="display:flex;flex-direction:column;align-items:center;gap:1px;font-size:9px;color:var(--warn);cursor:pointer;flex:none;">
-      <input type="checkbox" class="drug-from-oki" style="width:16px;height:16px;accent-color:var(--warn);flex:none;margin:0;">
-      置
-    </label>
+    <button type="button" class="from-oki-toggle" data-on="0" onclick="toggleFromOki(this)" title="置き薬から使用（在庫を減らさない）" style="flex:none;width:34px;height:34px;border:1px solid var(--border);background:var(--bg3);border-radius:8px;cursor:pointer;font-size:15px;opacity:0.4;">💼</button>
     <button onclick="this.closest('.drug-row').remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 7px;cursor:pointer;font-size:13px;flex:none;">✕</button>`;
   document.getElementById('treat-drug-rows').appendChild(row);
   if (d) { const sel = row.querySelector('select'); onDrugRowChange(sel); }
@@ -1882,6 +1879,21 @@ function pickForRow(btn, type) {
     if (type === 'oki') onTreatOkiRowChange(sel);
     else onDrugRowChange(sel);
   });
+}
+
+// 置き薬から使用トグル（🚚）のON/OFF
+function toggleFromOki(btn) {
+  const on = btn.dataset.on === '1';
+  btn.dataset.on = on ? '0' : '1';
+  if (on) {
+    btn.style.opacity = '0.4';
+    btn.style.background = 'var(--bg3)';
+    btn.style.borderColor = 'var(--border)';
+  } else {
+    btn.style.opacity = '1';
+    btn.style.background = 'var(--warn)';
+    btn.style.borderColor = 'var(--warn)';
+  }
 }
 
 function onDrugRowChange(sel) {
@@ -1973,7 +1985,7 @@ function saveTreat() {
     if (sel?.value && qty > 0) {
       // ℓ単位入力の点滴はml換算（1ℓ=1000ml）
       if (row.dataset.literInput === '1') qty = qty * 1000;
-      const fromOki = row.querySelector('.drug-from-oki')?.checked || false;
+      const fromOki = row.querySelector('.from-oki-toggle')?.dataset.on === '1';
       drugList.push({ drugId: sel.value, qty, fromOki });
     }
   });
@@ -2945,8 +2957,8 @@ function loadDrugPreset(diseaseCode) {
         <span style="font-size:14px;flex:1;min-width:0;">${s.name}</span>
         <input type="number" id="dp_single_qty_${i}" value="${qtyVal}" step="0.1" onclick="event.stopPropagation()" style="width:48px;background:var(--bg2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px;font-size:13px;text-align:right;">
         <span style="font-size:11px;color:var(--muted);margin-left:3px;width:24px;">${unit}</span>
-        <label onclick="event.stopPropagation()" title="置き薬から使用（在庫を減らさない）" style="display:flex;flex-direction:column;align-items:center;gap:1px;font-size:9px;color:var(--warn);cursor:pointer;flex:none;margin-left:4px;">
-          <input type="checkbox" id="dp_single_oki_${i}" style="width:16px;height:16px;accent-color:var(--warn);margin:0;">置
+        <label onclick="event.stopPropagation()" title="置き薬から使用（在庫を減らさない）" style="flex:none;margin-left:4px;">
+          <button type="button" class="dp-oki-toggle" data-on="0" id="dp_single_oki_${i}" onclick="event.stopPropagation();toggleFromOki(this)" style="width:32px;height:32px;border:1px solid var(--border);background:var(--bg3);border-radius:8px;cursor:pointer;font-size:14px;opacity:0.4;">💼</button>
         </label>
       </div>
       ${note ? `<div style="font-size:10px;color:${dayNum>=4&&s.note&&s.note.includes('3日間')?'var(--danger)':'var(--warn)'};margin-left:30px;">${note}</div>` : ''}
@@ -3089,7 +3101,7 @@ function applyDrugPresetToRows() {
       const i = chk.id.replace('dp_single_', '');
       const qty = parseFloat(document.getElementById('dp_single_qty_' + i)?.value) || 0;
       const noStock = chk.dataset.nostock === '1';
-      const fromOki = document.getElementById('dp_single_oki_' + i)?.checked || false;
+      const fromOki = document.getElementById('dp_single_oki_' + i)?.dataset.on === '1';
       if (noStock) {
         // 塗布薬など：在庫減算しないが記録には残す（qty 0でも可）
         selected.push({ drugId: chk.dataset.drugId, qty, noStock: true, fromOki });
