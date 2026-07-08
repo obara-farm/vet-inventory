@@ -851,6 +851,10 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
         <option value="">その他（単位を自由入力）</option>
       </select>
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">バイアル/点滴=1本の容量(ml)、アンプル=1箱のA数＋1Aの容量、粉包=1箱の包数を下に設定</div>
+      <label style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:13px;cursor:pointer;">
+        <input type="checkbox" id="drug-dispense-full" style="width:18px;height:18px;accent-color:var(--accent);flex:none;">
+        必ず1本まるごと使用（処置時に自動で1本分の量を入れる／アミパレン等）
+      </label>
     </div>
     <div class="form-group">
       <label>在庫管理方法</label>
@@ -1864,6 +1868,17 @@ function onDrugRowChange(sel) {
       qtyInput.step = '1';
       qtyInput.placeholder = '本';
     }
+    // 数量の自動セット（未入力 or デフォルト1のときだけ上書き）
+    const cur = parseFloat(qtyInput.value);
+    if (!cur || cur === 1) {
+      if (d.dispenseFull && d.volume > 0) {
+        // 必ず1本まるごと使う薬（アミパレン等）
+        qtyInput.value = d.volume;
+      } else {
+        const auto = autoDoseFor(sel.value);
+        if (auto != null) qtyInput.value = auto;
+      }
+    }
   } else {
     unitLabel.textContent = '';
   }
@@ -2280,6 +2295,7 @@ function clearDrugForm() {
   document.getElementById('drug-expiry').value = '';
   document.getElementById('drug-maker').value = '';
   document.getElementById('drug-form').value = 'vial';
+  document.getElementById('drug-dispense-full').checked = false;
   document.getElementById('drug-storage').value = '';
   document.getElementById('drug-bacteria').value = '';
   document.getElementById('drug-indication').value = '';
@@ -2312,6 +2328,7 @@ function editDrug(drugId) {
   document.getElementById('drug-expiry').value = d.expiry || '';
   document.getElementById('drug-maker').value = d.maker || '';
   document.getElementById('drug-form').value = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+  document.getElementById('drug-dispense-full').checked = !!d.dispenseFull;
   document.getElementById('drug-storage').value = d.storage || '';
   document.getElementById('drug-bacteria').value = d.bacteria || '';
   document.getElementById('drug-indication').value = d.indication || '';
@@ -2354,6 +2371,7 @@ function saveDrug() {
     expiry: document.getElementById('drug-expiry').value.trim(),
     maker: document.getElementById('drug-maker').value.trim(),
     form: document.getElementById('drug-form').value,
+    dispenseFull: document.getElementById('drug-dispense-full').checked,
     storage: document.getElementById('drug-storage').value.trim(),
     bacteria: document.getElementById('drug-bacteria').value.trim(),
     indication: document.getElementById('drug-indication').value.trim(),
