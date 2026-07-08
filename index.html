@@ -1847,17 +1847,26 @@ function openTreatDrugPicker() {
 function addTreatDrugRow(presetId) {
   const row = document.createElement('div');
   row.className = 'drug-row';
+  row.style.flexDirection = 'column';
+  row.style.alignItems = 'stretch';
+  row.style.gap = '3px';
   const d = presetId ? drugs[presetId] : null;
   row.innerHTML = `
-    <select onchange="onDrugRowChange(this)" style="display:none;"><option value="">薬品を選択...</option>${d?`<option value="${presetId}" selected>${d.name}</option>`:''}</select>
-    <button type="button" onclick="pickForRow(this,'drug')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--border);color:${d?'var(--text)':'var(--muted)'};border-radius:8px;padding:9px 10px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d?d.name:'薬品を選択...'}</button>
-    <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
-      <input type="number" min="0.1" step="0.1" value="1" placeholder="量"
-        style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
-        oninput="updateWdPreview()">
-      <span class="drug-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <select onchange="onDrugRowChange(this)" style="display:none;"><option value="">薬品を選択...</option>${d?`<option value="${presetId}" selected>${d.name}</option>`:''}</select>
+      <button type="button" onclick="pickForRow(this,'drug')" style="flex:1;min-width:0;text-align:left;background:var(--bg3);border:1px solid var(--border);color:${d?'var(--text)':'var(--muted)'};border-radius:8px;padding:9px 10px;font-size:13px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${d?d.name:'薬品を選択...'}</button>
+      <div style="display:flex;align-items:center;gap:2px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);padding:0 6px;">
+        <input type="number" min="0.1" step="0.1" value="1" placeholder="量"
+          style="width:50px;background:none;border:none;color:var(--text);padding:8px 0;font-size:13px;outline:none;"
+          oninput="updateWdPreview()">
+        <span class="drug-unit-label" style="font-size:12px;color:var(--muted);white-space:nowrap;"></span>
+      </div>
+      <button onclick="this.closest('.drug-row').remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>
     </div>
-    <button onclick="this.parentElement.remove();updateWdPreview()" style="background:none;border:1px solid var(--border);color:var(--danger);border-radius:6px;padding:6px 8px;cursor:pointer;font-size:14px;">✕</button>`;
+    <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;padding-left:2px;">
+      <input type="checkbox" class="drug-from-oki" style="width:15px;height:15px;accent-color:var(--warn);flex:none;">
+      置き薬から使用（在庫を減らさない・カルテには記録）
+    </label>`;
   document.getElementById('treat-drug-rows').appendChild(row);
   if (d) { const sel = row.querySelector('select'); onDrugRowChange(sel); }
 }
@@ -1901,6 +1910,14 @@ function onDrugRowChange(sel) {
       qtyInput.step = '1';
       qtyInput.placeholder = 'ml';
       unitLabel.textContent = 'ml';
+    } else if (form === 'ampoule') {
+      // アンプル：A単位（整数）、1A=volume ml。既定1A
+      row.dataset.literInput = '';
+      qtyInput.step = '1';
+      qtyInput.min = '1';
+      qtyInput.placeholder = 'A';
+      unitLabel.textContent = 'A';
+      if (!cur || cur === 1) qtyInput.value = 1;
     } else if (d.stockType === 'ml') {
       row.dataset.literInput = '';
       qtyInput.step = '0.1';
@@ -1912,7 +1929,8 @@ function onDrugRowChange(sel) {
     }
     // 数量の自動セット（未入力 or 既定1のときだけ上書き）
     if (!cur || cur === 1) {
-      if (d.dispenseFull && d.volume > 0) qtyInput.value = d.volume;   // 必ず1本（アミパレン=400ml等）
+      if (form === 'ampoule') qtyInput.value = 1;                       // アンプルは1A固定
+      else if (d.dispenseFull && d.volume > 0) qtyInput.value = d.volume; // 必ず1本（アミパレン=400ml等）
       else { const auto = autoDoseFor(sel.value); if (auto != null) qtyInput.value = auto; }
     }
   } else {
@@ -1956,11 +1974,12 @@ function saveTreat() {
   const drugList = [];
   rows.forEach(row => {
     const sel = row.querySelector('select');
-    let qty = parseFloat(row.querySelector('input')?.value) || 0;
+    let qty = parseFloat(row.querySelector('input[type="number"]')?.value) || 0;
     if (sel?.value && qty > 0) {
       // ℓ単位入力の点滴はml換算（1ℓ=1000ml）
       if (row.dataset.literInput === '1') qty = qty * 1000;
-      drugList.push({ drugId: sel.value, qty });
+      const fromOki = row.querySelector('.drug-from-oki')?.checked || false;
+      drugList.push({ drugId: sel.value, qty, fromOki });
     }
   });
   // 薬品プリセットのチェック分を追加
@@ -2013,6 +2032,7 @@ function saveTreat() {
     };
     // 在庫減算
     drugList.forEach(d => {
+      if (d.noStock || d.fromOki) return;
       const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
       const noteType = kofuFarm ? 'dispense' : 'use';
       updates['movements/' + movId] = {
@@ -2085,6 +2105,7 @@ function saveTreat() {
   // 診察牛への使用薬品 在庫減算
   drugList.forEach(d => {
     if (d.noStock) return; // 塗布薬など：在庫減算しない
+    if (d.fromOki) return; // 置き薬から使用：交付時に減算済みなので減らさない
     const movId = 'mov_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
     updates['movements/' + movId] = { drugId: d.drugId, type: 'use', qty: -d.qty, date, cowId, treatId, memo: finalMemo };
   });
@@ -2437,6 +2458,12 @@ function fmtDrugQty(drugId, qty, noStock) {
   const d = drugs[drugId];
   if (!d) return `${qty}`;
   if (noStock || qty === 0) return '塗布・適量';
+  const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+  // アンプル：qtyはA数、1A=volume ml
+  if (form === 'ampoule' && d.volume > 0) {
+    const ml = Math.round(qty * d.volume * 10) / 10;
+    return `${qty}A(${ml}ml)`;
+  }
   const unit = d.unit || '';
   if (d.stockType === 'count' && d.volume > 0) {
     const ml = Math.round(qty * d.volume * 10) / 10;
@@ -2579,7 +2606,7 @@ function openTreatDetail(treatId) {
   const drugRows = (t.drugs || []).map(d => {
     const drug = drugs[d.drugId];
     return drug ? `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:13px;">
-      💊 ${drug.name} — ${fmtDrugQty(d.drugId, d.qty, d.noStock)}
+      💊 ${drug.name} — ${fmtDrugQty(d.drugId, d.qty, d.noStock)}${d.fromOki ? ' <span style="color:var(--warn);font-size:11px;">（置き薬から）</span>' : ''}
     </div>` : '';
   }).join('');
   document.getElementById('treat-detail-content').innerHTML = `
