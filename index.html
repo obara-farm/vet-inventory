@@ -5119,6 +5119,17 @@ function printKarte() {
     const vitals = t.temp||t.pulse||t.resp ?
       `T:${t.temp||'　'}　P:${t.pulse||'　'}　R:${t.resp||'　'}` : '';
 
+    // 出荷制限期間（休薬）：使用薬の最大休薬から終了日を計算
+    let maxMeat = 0, maxMilkH = 0;
+    (t.drugs||[]).forEach(d => {
+      const drug = drugs[d.drugId];
+      if (!drug || d.fromOki) return;
+      if (drug.wdMeat > 0) maxMeat = Math.max(maxMeat, drug.wdMeat);
+      if (drug.wdMilkH > 0) maxMilkH = Math.max(maxMilkH, drug.wdMilkH);
+    });
+    const meatEndK = maxMeat > 0 ? fmtDt(addDays(t.date, maxMeat)) : '―';
+    const milkEndK = maxMilkH > 0 ? fmtDt(addDays(t.date, Math.ceil(maxMilkH/24))) : '―';
+
     return `
     <div style="font-family:'MS Mincho','游明朝',serif;font-size:10pt;padding:8mm;box-sizing:border-box;background:#fff;page-break-after:always;">
       <!-- 診療日・バイタル -->
@@ -5129,18 +5140,25 @@ function printKarte() {
           <td style="width:80px;font-size:10px;text-align:right;">診目 ${idx+1}</td>
         </tr>
       </table>
+      <!-- 稟告 -->
+      ${t.complaint ? `<table style="width:100%;border:1px solid #000;border-collapse:collapse;margin-bottom:4px;">
+        <tr>
+          <td style="width:80px;border:1px solid #000;padding:3px 6px;font-size:10px;vertical-align:top;">稟告</td>
+          <td style="border:1px solid #000;padding:3px 6px;font-size:10px;">${t.complaint}</td>
+        </tr>
+      </table>` : ''}
       <!-- 現症・経過 -->
       <table style="width:100%;border:1px solid #000;border-collapse:collapse;margin-bottom:4px;">
         <tr>
           <td style="width:80px;border:1px solid #000;padding:3px 6px;font-size:10px;vertical-align:top;">現症・経過</td>
           <td style="border:1px solid #000;padding:3px 6px;font-size:10px;min-height:40px;">
             ${vitals ? `<span style="font-size:10px;">${vitals}</span><br>` : ''}
-            ${t.complaint ? `稟告: ${t.complaint}<br>` : ''}
             ${t.findings||''}
           </td>
-          <td style="width:100px;border:1px solid #000;padding:3px 6px;font-size:9px;vertical-align:top;">
+          <td style="width:110px;border:1px solid #000;padding:3px 6px;font-size:9px;vertical-align:top;">
             出荷制限期間<br>
-            牛乳&nbsp;&nbsp;&nbsp;&nbsp;肉
+            肉: ${meatEndK}<br>
+            乳: ${milkEndK}
           </td>
         </tr>
       </table>
