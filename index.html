@@ -1483,6 +1483,16 @@ function renderHistory() {
   }).join('');
 }
 
+// 内部量（ml/A/包/袋/本）→ 大単位数（本数など）に戻す。集計表示用。
+function internalToBig(d, internal) {
+  if (!d) return internal;
+  const form = d.form || (d.stockType === 'ml' && d.volume > 0 ? 'vial' : '');
+  if ((form === 'vial' || form === 'drip') && d.volume > 0) {
+    return internal / d.volume; // ml → 本数
+  }
+  return internal; // A/包/袋/本/個 はそのまま
+}
+
 // ===== 出納帳（入出庫一覧） =====
 let ledgerView = 'detail';
 const LEDGER_TYPE_LABEL = { in:'入庫', use:'使用', dispense:'置き薬', dispose:'廃棄', adjust:'調整' };
@@ -1511,19 +1521,20 @@ function setLedgerAll() {
   document.getElementById('ledger-to').value = '';
   renderLedger();
 }
-// 箱＋本数の表記（perBoxで箱と端数に分ける）
+// 箱＋本数の表記（perBoxで箱と端数に分ける）。countは大単位（本数など・小数可）
 function fmtBoxCount(d, count) {
   const unit = d ? bigUnitLabel(d) : '';
   const per = d && d.perBox > 0 ? d.perBox : 0;
+  const c = Math.round(count * 10) / 10; // 0.1単位で丸め
   if (per > 0) {
-    const box = Math.floor(count / per);
-    const rem = count % per;
+    const box = Math.floor(c / per);
+    const rem = Math.round((c - box * per) * 10) / 10;
     let s = '';
     if (box > 0) s += box + '箱';
     if (rem > 0 || box === 0) s += rem + unit;
-    return s + `（計${count}${unit}）`;
+    return s + `（計${c}${unit}）`;
   }
-  return count + unit;
+  return c + unit;
 }
 
 function getLedgerRows() {
@@ -1568,7 +1579,8 @@ function renderLedger() {
     el.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">明細 ${rows.length}件</div>` + rows.map(m => {
       const d = drugs[m.drugId];
       const unit = d ? bigUnitLabel(d) : '';
-      const q = Math.abs(m.qty);
+      const big = d ? internalToBig(d, Math.abs(m.qty)) : Math.abs(m.qty);
+      const q = Math.round(big * 10) / 10; // 本数（小数は0.1単位で丸め）
       return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;">
         <div style="flex:1;min-width:0;">
           <div style="font-weight:600;">${d?.name || m.drugId}</div>
@@ -1584,12 +1596,13 @@ function renderLedger() {
       </div>`;
     }).join('');
   } else {
-    // 集計：種類別 → 薬品別に合計（箱＋本数）
+    // 集計：種類別 → 薬品別に合計（大単位＝本数に換算してから箱＋本数）
     const byType = {};
     rows.forEach(m => {
       if (!byType[m.type]) byType[m.type] = {};
       if (!byType[m.type][m.drugId]) byType[m.type][m.drugId] = 0;
-      byType[m.type][m.drugId] += Math.abs(m.qty);
+      const d = drugs[m.drugId];
+      byType[m.type][m.drugId] += d ? internalToBig(d, Math.abs(m.qty)) : Math.abs(m.qty);
     });
     const typeOrder = ['in','use','dispense','dispose','adjust'];
     let html = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">集計（種類別・箱＋本数）</div>`;
@@ -1619,8 +1632,9 @@ function exportLedgerCSV(kind) {
     rows.forEach(m => {
       const d = drugs[m.drugId];
       const unit = d ? bigUnitLabel(d) : '';
+      const big = d ? Math.round(internalToBig(d, m.qty) * 10) / 10 : m.qty;
       const cow = m.cowId ? cowName(m.cowId) : '';
-      const cells = [m.date, d?.name||m.drugId, LEDGER_TYPE_LABEL[m.type]||m.type, m.qty, unit, cow, m.farmer||'', (m.memo||'').replace(/\n/g,' ')];
+      const cells = [m.date, d?.name||m.drugId, LEDGER_TYPE_LABEL[m.type]||m.type, big, unit, cow, m.farmer||'', (m.memo||'').replace(/\n/g,' ')];
       csv += cells.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',') + '\n';
     });
     fname = 'yakuhin_meisai';
@@ -1629,17 +1643,19 @@ function exportLedgerCSV(kind) {
     rows.forEach(m => {
       if (!byType[m.type]) byType[m.type] = {};
       if (!byType[m.type][m.drugId]) byType[m.type][m.drugId] = 0;
-      byType[m.type][m.drugId] += Math.abs(m.qty);
+      const d = drugs[m.drugId];
+      byType[m.type][m.drugId] += d ? internalToBig(d, Math.abs(m.qty)) : Math.abs(m.qty);
     });
     csv = '種類,薬品名,箱,端数,単位,合計\n';
     ['in','use','dispense','dispose','adjust'].forEach(tp => {
       if (!byType[tp]) return;
-      Object.entries(byType[tp]).sort((a,b)=>b[1]-a[1]).forEach(([did, cnt]) => {
+      Object.entries(byType[tp]).sort((a,b)=>b[1]-a[1]).forEach(([did, cntRaw]) => {
         const d = drugs[did];
         const unit = d ? bigUnitLabel(d) : '';
+        const cnt = Math.round(cntRaw * 10) / 10;
         const per = d && d.perBox > 0 ? d.perBox : 0;
         const box = per > 0 ? Math.floor(cnt/per) : '';
-        const rem = per > 0 ? cnt%per : cnt;
+        const rem = per > 0 ? Math.round((cnt - Math.floor(cnt/per)*per)*10)/10 : cnt;
         const cells = [LEDGER_TYPE_LABEL[tp]||tp, d?.name||did, box, rem, unit, cnt];
         csv += cells.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',') + '\n';
       });
