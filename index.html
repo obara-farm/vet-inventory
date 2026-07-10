@@ -178,6 +178,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
   <button class="tab-btn" onclick="showTab('history')" id="tab-history">
     <span>📋</span>履歴
   </button>
+  <button class="tab-btn" onclick="showTab('ledger')" id="tab-ledger">
+    <span>📒</span>出納
+  </button>
 </div>
 
 <!-- ホーム -->
@@ -256,6 +259,46 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     <option value="">すべての牛</option>
   </select>
   <div id="history-list"></div>
+</div>
+
+<!-- 出納（入出庫一覧・出し入れ帳） -->
+<div class="page" id="page-ledger">
+  <div class="section-header">
+    <div class="section-title">📒 薬品出納帳</div>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+    <input type="date" id="ledger-from" class="search-box" style="flex:1;min-width:120px;" onchange="renderLedger()">
+    <span style="align-self:center;color:var(--muted);">〜</span>
+    <input type="date" id="ledger-to" class="search-box" style="flex:1;min-width:120px;" onchange="renderLedger()">
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+    <button class="btn btn-secondary btn-sm" onclick="setLedgerThisYear()" style="flex:1;">今年</button>
+    <button class="btn btn-secondary btn-sm" onclick="setLedgerAll()" style="flex:1;">全期間</button>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+    <select id="ledger-type" class="search-box" style="flex:1;min-width:100px;" onchange="renderLedger()">
+      <option value="">全種類</option>
+      <option value="in">入庫</option>
+      <option value="use">使用</option>
+      <option value="dispense">置き薬</option>
+      <option value="dispose">廃棄</option>
+      <option value="adjust">調整</option>
+    </select>
+    <select id="ledger-order" class="search-box" style="flex:1;min-width:100px;" onchange="renderLedger()">
+      <option value="desc">新しい順</option>
+      <option value="asc">古い順</option>
+    </select>
+  </div>
+  <input type="text" id="ledger-search" class="search-box" placeholder="薬品名・農家名・牛で絞り込み" oninput="renderLedger()" style="margin-bottom:8px;">
+  <div style="display:flex;gap:6px;margin-bottom:10px;">
+    <button class="btn btn-secondary btn-sm" onclick="exportLedgerCSV('detail')" style="flex:1;">📄 明細CSV</button>
+    <button class="btn btn-secondary btn-sm" onclick="exportLedgerCSV('summary')" style="flex:1;">📊 集計CSV</button>
+  </div>
+  <div style="display:flex;gap:6px;margin-bottom:10px;">
+    <button class="btn btn-sm" id="ledger-view-detail" onclick="setLedgerView('detail')" style="flex:1;background:var(--accent);color:#000;">明細</button>
+    <button class="btn btn-secondary btn-sm" id="ledger-view-summary" onclick="setLedgerView('summary')" style="flex:1;">集計</button>
+  </div>
+  <div id="ledger-content"></div>
 </div>
 
 <!-- ===== モーダル ===== -->
@@ -1182,6 +1225,7 @@ function renderAll() {
   renderDrugList();
   populateCategoryFilters();
   renderHistory();
+  renderLedger();
 }
 
 function renderHome() {
@@ -1437,6 +1481,178 @@ function renderHistory() {
       ${t.memo ? `<div style="font-size:11px;color:var(--muted);margin-top:4px;">${t.memo}</div>` : ''}
     </div>`;
   }).join('');
+}
+
+// ===== 出納帳（入出庫一覧） =====
+let ledgerView = 'detail';
+const LEDGER_TYPE_LABEL = { in:'入庫', use:'使用', dispense:'置き薬', dispose:'廃棄', adjust:'調整' };
+
+function setLedgerView(v) {
+  ledgerView = v;
+  const dBtn = document.getElementById('ledger-view-detail');
+  const sBtn = document.getElementById('ledger-view-summary');
+  if (v === 'detail') {
+    dBtn.style.background = 'var(--accent)'; dBtn.style.color = '#000'; dBtn.className = 'btn btn-sm';
+    sBtn.style.background = ''; sBtn.style.color = ''; sBtn.className = 'btn btn-secondary btn-sm';
+  } else {
+    sBtn.style.background = 'var(--accent)'; sBtn.style.color = '#000'; sBtn.className = 'btn btn-sm';
+    dBtn.style.background = ''; dBtn.style.color = ''; dBtn.className = 'btn btn-secondary btn-sm';
+  }
+  renderLedger();
+}
+function setLedgerThisYear() {
+  const y = new Date().getFullYear();
+  document.getElementById('ledger-from').value = y + '-01-01';
+  document.getElementById('ledger-to').value = y + '-12-31';
+  renderLedger();
+}
+function setLedgerAll() {
+  document.getElementById('ledger-from').value = '';
+  document.getElementById('ledger-to').value = '';
+  renderLedger();
+}
+// 箱＋本数の表記（perBoxで箱と端数に分ける）
+function fmtBoxCount(d, count) {
+  const unit = d ? bigUnitLabel(d) : '';
+  const per = d && d.perBox > 0 ? d.perBox : 0;
+  if (per > 0) {
+    const box = Math.floor(count / per);
+    const rem = count % per;
+    let s = '';
+    if (box > 0) s += box + '箱';
+    if (rem > 0 || box === 0) s += rem + unit;
+    return s + `（計${count}${unit}）`;
+  }
+  return count + unit;
+}
+
+function getLedgerRows() {
+  const from = document.getElementById('ledger-from')?.value || '';
+  const to = document.getElementById('ledger-to')?.value || '';
+  const typeF = document.getElementById('ledger-type')?.value || '';
+  const q = (document.getElementById('ledger-search')?.value || '').trim().toLowerCase();
+  const order = document.getElementById('ledger-order')?.value || 'desc';
+
+  let rows = Object.entries(movements).map(([id, m]) => ({ id, ...m }));
+  rows = rows.filter(m => {
+    if (from && (m.date || '') < from) return false;
+    if (to && (m.date || '') > to) return false;
+    if (typeF && m.type !== typeF) return false;
+    if (q) {
+      const dname = (drugs[m.drugId]?.name || '').toLowerCase();
+      const farmer = (m.farmer || '').toLowerCase();
+      const cow = m.cowId ? cowName(m.cowId).toLowerCase() : '';
+      if (!dname.includes(q) && !farmer.includes(q) && !cow.includes(q)) return false;
+    }
+    return true;
+  });
+  rows.sort((a, b) => order === 'asc' ? (a.date||'').localeCompare(b.date||'') : (b.date||'').localeCompare(a.date||''));
+  return rows;
+}
+
+function renderLedger() {
+  const el = document.getElementById('ledger-content');
+  if (!el) return;
+  // 初回：期間未設定なら今年（1/1〜12/31）を既定にする
+  const fromEl = document.getElementById('ledger-from');
+  const toEl = document.getElementById('ledger-to');
+  if (fromEl && toEl && !fromEl.dataset.init) {
+    fromEl.dataset.init = '1';
+    const y = new Date().getFullYear();
+    fromEl.value = y + '-01-01';
+    toEl.value = y + '-12-31';
+  }
+  const rows = getLedgerRows();
+  if (ledgerView === 'detail') {
+    if (!rows.length) { el.innerHTML = '<p class="text-muted" style="text-align:center;padding:20px;">該当する記録がありません</p>'; return; }
+    el.innerHTML = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">明細 ${rows.length}件</div>` + rows.map(m => {
+      const d = drugs[m.drugId];
+      const unit = d ? bigUnitLabel(d) : '';
+      const q = Math.abs(m.qty);
+      return `<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;">${d?.name || m.drugId}</div>
+          <div style="color:var(--muted);font-size:11px;margin-top:2px;">
+            <span style="color:${m.qty>0?'var(--accent)':'var(--danger)'};font-weight:700;">${m.qty>0?'＋':'−'}${q}${unit}</span>
+            <span style="margin-left:6px;">${LEDGER_TYPE_LABEL[m.type]||m.type}</span>
+            ${m.farmer?`<span style="color:var(--warn);margin-left:4px;">→${m.farmer}</span>`:''}
+            ${m.cowId?`<span style="color:var(--info);margin-left:4px;">${cowName(m.cowId)}</span>`:''}
+          </div>
+          ${m.memo?`<div style="color:var(--muted);font-size:10px;margin-top:2px;">${m.memo}</div>`:''}
+        </div>
+        <div style="color:var(--muted);white-space:nowrap;margin-left:8px;">${fmtDate(m.date)}</div>
+      </div>`;
+    }).join('');
+  } else {
+    // 集計：種類別 → 薬品別に合計（箱＋本数）
+    const byType = {};
+    rows.forEach(m => {
+      if (!byType[m.type]) byType[m.type] = {};
+      if (!byType[m.type][m.drugId]) byType[m.type][m.drugId] = 0;
+      byType[m.type][m.drugId] += Math.abs(m.qty);
+    });
+    const typeOrder = ['in','use','dispense','dispose','adjust'];
+    let html = `<div style="font-size:12px;color:var(--muted);margin-bottom:6px;">集計（種類別・箱＋本数）</div>`;
+    let any = false;
+    typeOrder.forEach(tp => {
+      if (!byType[tp]) return;
+      any = true;
+      const items = Object.entries(byType[tp]).map(([did, cnt]) => ({ d: drugs[did], name: drugs[did]?.name || did, cnt }))
+        .sort((a,b) => b.cnt - a.cnt);
+      html += `<div style="margin:10px 0 4px;font-weight:700;color:var(--accent);border-bottom:1px solid var(--accent);padding-bottom:3px;">${LEDGER_TYPE_LABEL[tp]||tp}</div>`;
+      html += items.map(it => `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:12px;">
+        <span style="flex:1;">${it.name}</span>
+        <span style="color:var(--text);font-weight:600;white-space:nowrap;margin-left:8px;">${fmtBoxCount(it.d, it.cnt)}</span>
+      </div>`).join('');
+    });
+    if (!any) html += '<p class="text-muted" style="text-align:center;padding:20px;">該当する記録がありません</p>';
+    el.innerHTML = html;
+  }
+}
+
+function exportLedgerCSV(kind) {
+  const rows = getLedgerRows();
+  if (!rows.length) { alert('出力する記録がありません'); return; }
+  let csv = '', fname = '';
+  if (kind === 'detail') {
+    csv = '日付,薬品名,種類,数量,単位,対象牛,農家,メモ\n';
+    rows.forEach(m => {
+      const d = drugs[m.drugId];
+      const unit = d ? bigUnitLabel(d) : '';
+      const cow = m.cowId ? cowName(m.cowId) : '';
+      const cells = [m.date, d?.name||m.drugId, LEDGER_TYPE_LABEL[m.type]||m.type, m.qty, unit, cow, m.farmer||'', (m.memo||'').replace(/\n/g,' ')];
+      csv += cells.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',') + '\n';
+    });
+    fname = 'yakuhin_meisai';
+  } else {
+    const byType = {};
+    rows.forEach(m => {
+      if (!byType[m.type]) byType[m.type] = {};
+      if (!byType[m.type][m.drugId]) byType[m.type][m.drugId] = 0;
+      byType[m.type][m.drugId] += Math.abs(m.qty);
+    });
+    csv = '種類,薬品名,箱,端数,単位,合計\n';
+    ['in','use','dispense','dispose','adjust'].forEach(tp => {
+      if (!byType[tp]) return;
+      Object.entries(byType[tp]).sort((a,b)=>b[1]-a[1]).forEach(([did, cnt]) => {
+        const d = drugs[did];
+        const unit = d ? bigUnitLabel(d) : '';
+        const per = d && d.perBox > 0 ? d.perBox : 0;
+        const box = per > 0 ? Math.floor(cnt/per) : '';
+        const rem = per > 0 ? cnt%per : cnt;
+        const cells = [LEDGER_TYPE_LABEL[tp]||tp, d?.name||did, box, rem, unit, cnt];
+        csv += cells.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',') + '\n';
+      });
+    });
+    fname = 'yakuhin_shukei';
+  }
+  const from = document.getElementById('ledger-from')?.value || 'all';
+  const bom = '\uFEFF'; // Excelで文字化けしないようBOM付き
+  const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${fname}_${from}_${Date.now()}.csv`;
+  a.click();
 }
 
 function renderCowFilter() {
