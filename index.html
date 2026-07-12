@@ -3035,6 +3035,7 @@ function loadDiseasePreset(diseaseCode) {
   checklistWrap.style.display = '';
   findingsWrap.style.display = 'none';
   renderChecklist(preset.patterns[0].items);
+  applyVitalDefaults(diseaseCode, preset.patterns[0].label);
   // 薬品プリセット
   loadDrugPreset(diseaseCode);
 }
@@ -3712,6 +3713,7 @@ function selectPresetPattern(idx, diseaseCode) {
     }
   });
   renderChecklist(preset.patterns[idx].items);
+  applyVitalDefaults(diseaseCode, preset.patterns[idx].label);
 }
 
 function renderChecklist(items) {
@@ -3781,14 +3783,20 @@ const VITAL_DEFAULTS = {
   '080300': { p: 80,  r: 25 },  // 乳熱
 };
 
-function applyVitalDefaults(code) {
-  const v = VITAL_DEFAULTS[code];
+function applyVitalDefaults(code, patternLabel) {
+  let v = VITAL_DEFAULTS[code];
+  // 肺炎はパターン（通常/重症/回復期）でP・Rが変わる
+  if (code === '031404') {
+    if (patternLabel && patternLabel.includes('重症')) v = { p: 120, r: 44 };
+    else if (patternLabel && patternLabel.includes('回復')) v = { p: 85, r: 30 };
+    else v = { p: 95, r: 45 }; // 通常
+  }
   if (!v) return;
   const pEl = document.getElementById('treat-pulse');
   const rEl = document.getElementById('treat-resp');
-  // 空欄のときだけ目安を入れる（実測値は尊重）
-  if (pEl && !pEl.value) pEl.value = v.p;
-  if (rEl && !rEl.value) rEl.value = v.r;
+  // 案A：病名・パターンを切り替えたら常に目安値で上書き
+  if (pEl) pEl.value = v.p;
+  if (rEl) rEl.value = v.r;
 }
 
 function onDiseaseCodeChange() {
