@@ -1696,9 +1696,6 @@ function initTreatModal() {
   document.getElementById('treat-temp').value = '';
   document.getElementById('treat-pulse').value = '';
   document.getElementById('treat-resp').value = '';
-  initDiseaseSelect();
-  document.getElementById('treat-disease-large').value = '__frequent__';
-  onDiseaseLargeChange();
   document.getElementById('treat-pattern-wrap').style.display = 'none';
   document.getElementById('treat-checklist-wrap').style.display = 'none';
   document.getElementById('treat-findings-wrap').style.display = '';
@@ -1732,6 +1729,9 @@ function initTreatModal() {
   if (nbBtn) { nbBtn.style.background = 'var(--bg3)'; nbBtn.style.color = 'var(--info)'; nbBtn.textContent = '🐄 この母牛の新生子として登録（耳標なし・後で入力）'; }
   initDiseaseSelect();
   setTreatKind('chiryo');
+  // 病名大分類を「★よく使う病名」を選択済みにして一覧を表示（選択肢生成後に設定）
+  document.getElementById('treat-disease-large').value = '__frequent__';
+  onDiseaseLargeChange();
 }
 
 // 処置区分（治療 / 繁殖処置）
