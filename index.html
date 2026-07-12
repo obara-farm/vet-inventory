@@ -1696,8 +1696,8 @@ function initTreatModal() {
   document.getElementById('treat-temp').value = '';
   document.getElementById('treat-pulse').value = '';
   document.getElementById('treat-resp').value = '';
-  document.getElementById('treat-disease-large').value = '';
-  document.getElementById('treat-disease-small-wrap').style.display = 'none';
+  document.getElementById('treat-disease-large').value = '__frequent__';
+  onDiseaseLargeChange();
   document.getElementById('treat-pattern-wrap').style.display = 'none';
   document.getElementById('treat-checklist-wrap').style.display = 'none';
   document.getElementById('treat-findings-wrap').style.display = '';
@@ -3759,9 +3759,41 @@ function toggleChk(checkId) {
   }
 }
 
+// 病名別のバイタル目安値（P脈拍・R呼吸）。体温Tは実測するので入れない。
+// 実データに基づく目安。空欄のときだけ自動入力し、実測値があれば上書きしない。
+const VITAL_DEFAULTS = {
+  '031404': { p: 95,  r: 45 },  // 肺炎 細菌性
+  '045501': { p: 90,  r: 35 },  // 腸炎 感染性（下痢）
+  '045300': { p: 90,  r: 35 },  // 腸捻転
+  '062400': { p: 70,  r: 25 },  // 鈍性発情
+  '081900': { p: 75,  r: 28 },  // 胎盤停滞
+  '080606': { p: 80,  r: 30 },  // 難産 陣痛異常
+  '081200': { p: 80,  r: 30 },  // 分娩遅延
+  '092400': { p: 60,  r: 20 },  // 新生子仮死
+  '121300': { p: 90,  r: 35 },  // 白筋症
+  '070503': { p: 85,  r: 30 },  // 急性乳房炎
+  '051802': { p: 80,  r: 28 },  // 尿石症
+  '131900': { p: 75,  r: 26 },  // 捻挫
+  '140601': { p: 75,  r: 26 },  // 皮膚炎
+  '063201': { p: 75,  r: 28 },  // 子宮内膜炎
+  '121900': { p: 80,  r: 25 },  // 低カルシウム血症
+  '122000': { p: 80,  r: 25 },  // マグネシウム欠乏症
+  '080300': { p: 80,  r: 25 },  // 乳熱
+};
+
+function applyVitalDefaults(code) {
+  const v = VITAL_DEFAULTS[code];
+  if (!v) return;
+  const pEl = document.getElementById('treat-pulse');
+  const rEl = document.getElementById('treat-resp');
+  // 空欄のときだけ目安を入れる（実測値は尊重）
+  if (pEl && !pEl.value) pEl.value = v.p;
+  if (rEl && !rEl.value) rEl.value = v.r;
+}
+
 function onDiseaseCodeChange() {
   const code = document.getElementById('treat-disease-code')?.value;
-  if (code) loadDiseasePreset(code);
+  if (code) { loadDiseasePreset(code); applyVitalDefaults(code); }
 }
 
 function onTreatDateChange() {
