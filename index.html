@@ -303,6 +303,20 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
 
 <!-- ===== モーダル ===== -->
 
+<!-- 抗生剤 使い分けガイド（参考・既存プリセットには干渉しない） -->
+<div class="modal-overlay" id="modal-abx-guide" style="z-index:2100;">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title">
+      💊 抗生剤の使い分けガイド（参考）
+      <button class="modal-close" onclick="closeModal('modal-abx-guide')">✕</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px;">
+      あくまで目安です。実際の選択は起因菌・感受性試験・臨床所見に基づき先生の判断で。難治例は培養・感受性試験が最も確実です。
+    </div>
+    <div id="abx-guide-content" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
 <!-- 処置登録モーダル -->
 <!-- 薬品選択ポップアップ（カテゴリー→薬品・複数選択） -->
 <div class="modal-overlay" id="modal-drug-picker" style="z-index:2000;">
@@ -398,6 +412,9 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,'Hiragino 
     <div class="form-group" id="treat-complaint-wrap">
       <label>稟告</label>
       <input type="text" id="treat-complaint" placeholder="例: 下痢、食欲不振">
+    </div>
+    <div style="margin-bottom:12px;">
+      <button type="button" onclick="openModal('modal-abx-guide')" style="width:100%;background:var(--bg3);border:1px dashed var(--info);color:var(--info);border-radius:8px;padding:8px;font-size:12px;cursor:pointer;">💊 抗生剤の使い分けガイド（参考）</button>
     </div>
     <!-- プリセットパターン選択（病名プリセットがある場合） -->
     <div id="treat-pattern-wrap" style="display:none;margin-bottom:12px;">
@@ -1170,6 +1187,7 @@ function showTab(tab) {
 function openModal(id) {
   document.getElementById(id).classList.add('open');
   if (id === 'modal-treat') initTreatModal();
+  if (id === 'modal-abx-guide') renderAbxGuide();
   if (id === 'modal-stock-in') initStockInModal();
   if (id === 'modal-drug-edit') {
     if (!document.getElementById('drug-edit-id').value) clearDrugForm();
@@ -2027,6 +2045,87 @@ let drugPickerMultiCallback = null; // 複数選択用
 let drugPickerCat = '';
 let drugPickerMulti = false;
 let drugPickerSelected = new Set();
+// 抗生剤の系統 → 下位の別名（成分系）。薬選択時に併記して分かりやすくする。
+const ABX_SUBNAME = {
+  'アンフェニコール系': 'フロルフェニコール',
+  'セフェム系': '第3世代セフェム・βラクタム',
+  'キノロン系': 'フルオロキノロン',
+  'ペニシリン系': 'アミノペニシリン/ペニシリンG',
+  'マクロライド系': 'ツラスロマイシン/チルミコシン等',
+  'テトラサイクリン系': 'オキシテトラサイクリン等',
+  'アミノグリコシド系': 'カナマイシン/ストレプトマイシン等',
+};
+function abxBadgeHtml(d) {
+  if (!d.abxSystem) return '';
+  const sub = ABX_SUBNAME[d.abxSystem] || '';
+  return `<span style="font-size:10px;color:var(--info);background:var(--bg3);border:1px solid var(--info);border-radius:4px;padding:1px 5px;margin-left:6px;white-space:nowrap;">${d.abxSystem}${sub?'・'+sub:''}</span>`;
+}
+
+// ===== 抗生剤使い分けガイド（よく使う病名すべて） =====
+// 感染症は抗生剤の段階（第一選択→次→切り札）、非感染症は「抗生剤は基本不要」を明示。
+const ABX_GUIDE = [
+  { name:'肺炎（細菌性）', abx:true, steps:[
+    ['第一選択', 'アンフェニコール系（フロルガン等）／セフェム系（エクセネル）'],
+    ['マイコプラズマ疑い・群発', 'マクロライド系（ドラクシン・チルモベット）'],
+    ['反応不良の切り札（温存）', 'キノロン系（マルボロック）'],
+  ], note:'起因菌はパスツレラ/マンヘミア/マイコプラズマ等。重症は早期に有効薬＋消炎剤。'},
+  { name:'腸炎（感染性）・子牛下痢症', abx:true, steps:[
+    ['第一選択', 'ペニシリン系（アンピシリン）'],
+    ['大腸菌狙いを強めたい', 'アモキシシリン可溶散（経口・消化管内濃度が高い）'],
+    ['重症・全身症状（発熱/脱水）', 'セフェム系（エクセネル）＋補液'],
+  ], note:'本命は支持療法（電解質補液・脱水補正・生菌剤）。同系統2剤併用は無意味。'},
+  { name:'急性乳房炎（大腸菌）', abx:true, steps:[
+    ['グラム陰性（大腸菌）主体', 'セフェム系（エクセネル）／キノロン系'],
+    ['グラム陽性（連鎖球菌・黄ブ菌）', 'ペニシリン系'],
+    ['重症・全身症状', '全身抗菌＋消炎剤＋補液'],
+  ], note:'起因菌で系統が変わる。可能なら乳汁培養。軽症カタル性は搾りきり＋経過観察も。'},
+  { name:'子宮内膜炎（急性カタル性）', abx:true, steps:[
+    ['局所', '子宮内注入剤'],
+    ['全身併用が必要な時', 'セフェム系／ペニシリン系'],
+  ], note:'PGF併用で子宮内容排出を促す。発熱・全身症状の有無で全身投与を判断。'},
+  { name:'尿石症（膀胱結石）', abx:true, steps:[
+    ['二次感染・膀胱炎合併時のみ', 'ペニシリン系／セフェム系'],
+  ], note:'本質は閉塞解除・尿路管理・食餌/水分。抗生剤は感染合併時の補助。'},
+  { name:'皮膚炎（感染症）', abx:true, steps:[
+    ['第一選択', 'ペニシリン系／セフェム系'],
+    ['範囲が広い・全身性', 'テトラサイクリン系（OTC）等'],
+  ], note:'局所処置（洗浄・外用）を基本に、感染が深い/広い時に全身抗菌。'},
+  { name:'白筋症', abx:false, note:'ビタミンE・セレン欠乏による筋障害。治療はVE/Se補給。抗生剤は不要（二次感染がなければ）。'},
+  { name:'鈍性発情', abx:false, note:'繁殖ホルモン療法（GnRH/PG/P4製剤）。抗生剤は不要。'},
+  { name:'胎盤停滞', abx:false, note:'基本は自然排出を待つ＋子宮環境管理。発熱・敗血症兆候・子宮内膜炎併発時のみ抗生剤を検討。'},
+  { name:'難産（陣痛異常）', abx:false, note:'産科処置が主。娩出後の子宮/産道損傷・感染リスクがある時に抗生剤を検討。'},
+  { name:'分娩遅延（長期在胎）', abx:false, note:'ホルモン（デキサ/PG等）で分娩誘起。抗生剤は基本不要。'},
+  { name:'新生子仮死（呼吸障害）', abx:false, note:'蘇生（呼吸刺激・保温）が主。誤嚥性肺炎リスクがある時に抗生剤を検討。'},
+  { name:'腸捻転', abx:false, note:'外科的整復が本命。開腹・腹膜炎リスクがある時に抗生剤を併用。'},
+  { name:'捻挫', abx:false, note:'消炎・鎮痛・安静。開放創・感染がなければ抗生剤は不要。'},
+  { name:'低カルシウム血症', abx:false, note:'カルシウム製剤の補給。抗生剤は不要。'},
+  { name:'マグネシウム欠乏症', abx:false, note:'マグネシウム補給。抗生剤は不要。'},
+  { name:'乳熱', abx:false, note:'カルシウム製剤の補給（低カルと同様）。抗生剤は不要。'},
+];
+
+function renderAbxGuide() {
+  const el = document.getElementById('abx-guide-content');
+  if (!el) return;
+  el.innerHTML = ABX_GUIDE.map(g => {
+    if (g.abx) {
+      const steps = g.steps.map((s,i) => `
+        <div style="display:flex;gap:8px;margin:3px 0;">
+          <span style="font-size:10px;color:${i===0?'var(--accent)':i===g.steps.length-1?'var(--warn)':'var(--info)'};font-weight:700;white-space:nowrap;min-width:120px;">${s[0]}</span>
+          <span style="font-size:12px;flex:1;">${s[1]}</span>
+        </div>`).join('');
+      return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:5px;">🦠 ${g.name}</div>
+        ${steps}
+        ${g.note?`<div style="font-size:10px;color:var(--muted);margin-top:5px;border-top:1px solid var(--border);padding-top:5px;">${g.note}</div>`:''}
+      </div>`;
+    }
+    return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg3);">
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${g.name} <span style="font-size:10px;color:var(--muted);font-weight:400;">（抗生剤は基本不要）</span></div>
+      <div style="font-size:11px;color:var(--muted);">${g.note}</div>
+    </div>`;
+  }).join('');
+}
+
 function openDrugPicker(callback) { // 単一選択
   drugPickerMulti = false;
   drugPickerCallback = callback;
@@ -2073,12 +2172,12 @@ function renderDrugPicker() {
       const on = drugPickerSelected.has(id);
       return `<div onclick="toggleDrugPick('${id}')" style="padding:10px 8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;">
         <span id="pickbox_${id}" style="width:22px;height:22px;border:2px solid ${on?'var(--accent)':'var(--border)'};background:${on?'var(--accent)':'transparent'};border-radius:5px;margin-right:10px;flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:15px;">${on?'✓':''}</span>
-        <span style="font-size:14px;flex:1;">${d.name}${badge}</span>
+        <span style="font-size:14px;flex:1;">${d.name}${badge}${abxBadgeHtml(d)}</span>
         <span style="font-size:11px;color:var(--muted);">${d.category||''}</span>
       </div>`;
     }
     return `<div onclick="pickDrug('${id}')" style="padding:11px 8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:14px;">${d.name}${badge}</span>
+      <span style="font-size:14px;">${d.name}${badge}${abxBadgeHtml(d)}</span>
       <span style="font-size:11px;color:var(--muted);">${d.category||''}</span>
     </div>`;
   }).join('');
