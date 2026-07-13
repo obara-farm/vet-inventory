@@ -2061,69 +2061,175 @@ function abxBadgeHtml(d) {
   return `<span style="font-size:10px;color:var(--info);background:var(--bg3);border:1px solid var(--info);border-radius:4px;padding:1px 5px;margin-left:6px;white-space:nowrap;">${d.abxSystem}${sub?'・'+sub:''}</span>`;
 }
 
-// ===== 抗生剤使い分けガイド（よく使う病名すべて） =====
-// 感染症は抗生剤の段階（第一選択→次→切り札）、非感染症は「抗生剤は基本不要」を明示。
+// ===== 抗生剤＋周辺薬 使い分けガイド（よく使う病名すべて・商品名ベース） =====
+// codeはFREQUENT_DISEASESの病名コードと対応。選択中の病名だけ表示する。
+// sections: [ラベル, 内容] の配列。levelは色分け用（first/next/last/support/main）。
 const ABX_GUIDE = [
-  { name:'肺炎（細菌性）', abx:true, steps:[
-    ['第一選択', 'アンフェニコール系（フロルガン等）／セフェム系（エクセネル）'],
-    ['マイコプラズマ疑い・群発', 'マクロライド系（ドラクシン・チルモベット）'],
-    ['反応不良の切り札（温存）', 'キノロン系（マルボロック）'],
+  { code:'031404', name:'肺炎（細菌性）', abx:true, sections:[
+    ['first','抗生剤 第一選択','フロルガン／ニューフロール450／レスフロール（アンフェニコール系）・エクセネルRTU EZ（セフェム系）'],
+    ['next','マイコ疑い・群発','ドラクシン／ドラクシンKP／チルモベット300（マクロライド系）'],
+    ['last','反応不良の切り札（温存）','マルボロック10%／フォーシル（キノロン系）'],
+    ['support','消炎・解熱','メロキシカム2%（第一選択）／フルニキシン（＝フォーベット）／ネオアス。重症の強い炎症は水溶性デキサ短期'],
+    ['support','気管支拡張・呼吸','ジプロフィリン注（気管支拡張）／テラプチク（呼吸促進）'],
+    ['support','補液','脱水時に酢酸リンゲル・生食'],
   ], note:'起因菌はパスツレラ/マンヘミア/マイコプラズマ等。重症は早期に有効薬＋消炎剤。'},
-  { name:'腸炎（感染性）・子牛下痢症', abx:true, steps:[
-    ['第一選択', 'ペニシリン系（アンピシリン）'],
-    ['大腸菌狙いを強めたい', 'アモキシシリン可溶散（経口・消化管内濃度が高い）'],
-    ['重症・全身症状（発熱/脱水）', 'セフェム系（エクセネル）＋補液'],
-  ], note:'本命は支持療法（電解質補液・脱水補正・生菌剤）。同系統2剤併用は無意味。'},
-  { name:'急性乳房炎（大腸菌）', abx:true, steps:[
-    ['グラム陰性（大腸菌）主体', 'セフェム系（エクセネル）／キノロン系'],
-    ['グラム陽性（連鎖球菌・黄ブ菌）', 'ペニシリン系'],
-    ['重症・全身症状', '全身抗菌＋消炎剤＋補液'],
-  ], note:'起因菌で系統が変わる。可能なら乳汁培養。軽症カタル性は搾りきり＋経過観察も。'},
-  { name:'子宮内膜炎（急性カタル性）', abx:true, steps:[
-    ['局所', '子宮内注入剤'],
-    ['全身併用が必要な時', 'セフェム系／ペニシリン系'],
+
+  { code:'045501', name:'腸炎（感染性）・子牛下痢症', abx:true, sections:[
+    ['first','抗生剤 第一選択','アンピシリンゾル20%（ペニシリン系）。経口→動物用CTC10%散KS'],
+    ['next','大腸菌狙いを強めたい','アモキシシリン可溶散（経口・消化管内濃度が高い）'],
+    ['main','★本命＝補液・電解質','酢酸リンゲルV／等張リンゲル糖V1000／動物用生食／重曹注NZ（アシドーシス補正）'],
+    ['support','栄養補液','アミパレン10%／イントラリポス10%／ビタミンB1加ブドウ糖'],
+    ['support','整腸・止瀉','ビオペア／ビオエンチ／ビスキノン末／新中森獣医散'],
+    ['support','胃粘膜保護','ノイエル細粒40%'],
+    ['support','消炎（発熱時）','メロキシカム2%'],
+  ], note:'本命は支持療法（補液・脱水補正・生菌剤）。同系統2剤併用は無意味。'},
+
+  { code:'070503', name:'急性乳房炎（大腸菌）', abx:true, sections:[
+    ['first','グラム陰性（大腸菌）疑い','エクセネルRTU EZ（セフェム系）／マルボロック10%（キノロン系）'],
+    ['next','グラム陽性（連鎖球菌・黄ブ菌）疑い','結晶ペニシリンG／懸濁性プロカインペニシリンG'],
+    ['support','消炎・解熱','フルニキシン（＝フォーベット・抗内毒素作用が強い→大腸菌性に有用）／メロキシカム2%'],
+    ['support','補液','重症・脱水時に酢酸リンゲル大量'],
+    ['support','局所','搾りきり'],
+  ], note:'起因菌で系統が変わる。乳汁性状・CMT・培養で推定。軽症カタルは搾りきり＋経過観察も。'},
+
+  { code:'063201', name:'子宮内膜炎（急性カタル性）', abx:true, sections:[
+    ['first','抗生剤（全身）','エクセネルRTU EZ／アンピシリンゾル20%'],
+    ['support','子宮収縮・内容排出','レジプロン（PG）／動物用アトニン-0（オキシトシン）'],
+    ['support','消炎（発熱時）','メロキシカム2%'],
   ], note:'PGF併用で子宮内容排出を促す。発熱・全身症状の有無で全身投与を判断。'},
-  { name:'尿石症（膀胱結石）', abx:true, steps:[
-    ['二次感染・膀胱炎合併時のみ', 'ペニシリン系／セフェム系'],
-  ], note:'本質は閉塞解除・尿路管理・食餌/水分。抗生剤は感染合併時の補助。'},
-  { name:'皮膚炎（感染症）', abx:true, steps:[
-    ['第一選択', 'ペニシリン系／セフェム系'],
-    ['範囲が広い・全身性', 'テトラサイクリン系（OTC）等'],
+
+  { code:'051802', name:'尿石症（膀胱結石）', abx:true, sections:[
+    ['next','抗生剤（二次感染・膀胱炎合併時のみ）','アンピシリンゾル20%／エクセネルRTU EZ'],
+    ['main','★本命','閉塞解除・尿路管理・飲水促進、ウロストン（尿石溶解）'],
+    ['support','消炎・鎮痙','メロキシカム2%／パドリニウム（鎮痙）'],
+  ], note:'本質は閉塞解除・尿路管理。抗生剤は感染合併時の補助。'},
+
+  { code:'140601', name:'皮膚炎（感染症）', abx:true, sections:[
+    ['first','抗生剤 第一選択','結晶／懸濁性プロカインペニシリンG・エクセネルRTU EZ'],
+    ['next','範囲が広い・全身性','OTC注10%（テトラサイクリン系）'],
+    ['support','局所','動物用イソジン液（消毒）／プロセーブ（皮膚保護）／カンメルブルー'],
+    ['support','消炎・止痒','メロキシカム2%／必要時プレドニン（中等度の抗炎症）'],
   ], note:'局所処置（洗浄・外用）を基本に、感染が深い/広い時に全身抗菌。'},
-  { name:'白筋症', abx:false, note:'ビタミンE・セレン欠乏による筋障害。治療はVE/Se補給。抗生剤は不要（二次感染がなければ）。'},
-  { name:'鈍性発情', abx:false, note:'繁殖ホルモン療法（GnRH/PG/P4製剤）。抗生剤は不要。'},
-  { name:'胎盤停滞', abx:false, note:'基本は自然排出を待つ＋子宮環境管理。発熱・敗血症兆候・子宮内膜炎併発時のみ抗生剤を検討。'},
-  { name:'難産（陣痛異常）', abx:false, note:'産科処置が主。娩出後の子宮/産道損傷・感染リスクがある時に抗生剤を検討。'},
-  { name:'分娩遅延（長期在胎）', abx:false, note:'ホルモン（デキサ/PG等）で分娩誘起。抗生剤は基本不要。'},
-  { name:'新生子仮死（呼吸障害）', abx:false, note:'蘇生（呼吸刺激・保温）が主。誤嚥性肺炎リスクがある時に抗生剤を検討。'},
-  { name:'腸捻転', abx:false, note:'外科的整復が本命。開腹・腹膜炎リスクがある時に抗生剤を併用。'},
-  { name:'捻挫', abx:false, note:'消炎・鎮痛・安静。開放創・感染がなければ抗生剤は不要。'},
-  { name:'低カルシウム血症', abx:false, note:'カルシウム製剤の補給。抗生剤は不要。'},
-  { name:'マグネシウム欠乏症', abx:false, note:'マグネシウム補給。抗生剤は不要。'},
-  { name:'乳熱', abx:false, note:'カルシウム製剤の補給（低カルと同様）。抗生剤は不要。'},
+
+  // ===== 抗生剤 基本不要の病態（周辺薬は商品名で） =====
+  { code:'121300', name:'白筋症', abx:false, sections:[
+    ['main','★本命','イーエスイー／ビタミンイー注（VE・セレン補給）'],
+  ], note:'VE・セレン欠乏による筋障害。抗生剤は不要（二次感染がなければ）。'},
+
+  { code:'062400', name:'鈍性発情', abx:false, sections:[
+    ['main','★本命（繁殖ホルモン）','コンサルタン（GnRH）／レジプロン（PG）／シダー1900・プリットデルタ（P4）／ゴナトロピン3000／アントリンR10'],
+  ], note:'ホルモン療法が主。抗生剤は不要。'},
+
+  { code:'081900', name:'胎盤停滞', abx:false, sections:[
+    ['main','★本命','自然排出待ち＋子宮管理、レジプロン（PG）／動物用アトニン-0（オキシトシン）'],
+    ['next','抗生剤（発熱・内膜炎併発時のみ）','エクセネル等＋メロキシカム2%'],
+  ], note:'発熱・敗血症兆候・子宮内膜炎併発時のみ抗生剤を検討。'},
+
+  { code:'080606', name:'難産（陣痛異常）', abx:false, sections:[
+    ['main','★本命（産科処置）','動物用アトニン-0（陣痛）／動物用ホーリン50（頸管弛緩）'],
+    ['next','抗生剤・消炎（娩出後の損傷・感染時）','抗生剤＋フルニキシン'],
+    ['support','注意','分娩関連の低カル併発に注意（カルマデックス／ニューグロンプラス）'],
+  ], note:'産科処置が主。娩出後の子宮/産道損傷・感染リスク時に抗生剤を検討。'},
+
+  { code:'081200', name:'分娩遅延（長期在胎）', abx:false, sections:[
+    ['main','★本命（分娩誘起）','水溶性デキサ＋レジプロン（PG）／オバホルモン注'],
+  ], note:'ホルモンで分娩誘起。抗生剤は基本不要。'},
+
+  { code:'092400', name:'新生子仮死（呼吸障害）', abx:false, sections:[
+    ['main','★本命（蘇生）','テラプチク（呼吸刺激）・保温・気道確保'],
+    ['next','抗生剤（誤嚥性肺炎リスク時）','—'],
+  ], note:'蘇生が主。誤嚥性肺炎リスク時に抗生剤を検討。'},
+
+  { code:'045300', name:'腸捻転', abx:false, sections:[
+    ['main','★本命','外科的整復'],
+    ['support','補液','ショック対策に酢酸リンゲル大量輸液'],
+    ['support','消炎・抗菌','フルニキシン／開腹・腹膜炎リスク時に抗生剤'],
+    ['support','鼓脹合併','ガスナインS（泡沫性鼓脹の消泡）'],
+  ], note:'外科整復が本命。開腹・腹膜炎リスク時に抗生剤を併用。'},
+
+  { code:'131900', name:'捻挫', abx:false, sections:[
+    ['main','★本命','消炎・鎮痛（メロキシカム2%／ネオアス）、安静、冷却/温罨法'],
+  ], note:'開放創・感染がなければ抗生剤は不要。'},
+
+  { code:'121900', name:'低カルシウム血症', abx:false, sections:[
+    ['main','★本命（Ca製剤・緩徐静注）','カルマデックス注／ニューグロンプラス'],
+    ['support','Mg併用','マグゾール注（低Mg併発時）'],
+  ], note:'カルシウム製剤の緩徐静注。高用量は心機能に注意。抗生剤は不要。'},
+
+  { code:'122000', name:'マグネシウム欠乏症', abx:false, sections:[
+    ['main','★本命','動物用マグゾール注（硫酸Mg・皮下）'],
+    ['support','Ca併用','カルマデックス／ニューグロンプラス（低Ca併発時）'],
+  ], note:'マグネシウム補給。抗生剤は不要。'},
+
+  { code:'080300', name:'乳熱', abx:false, sections:[
+    ['main','★本命（Ca製剤・緩徐静注）','カルマデックス注／ニューグロンプラス'],
+    ['support','Mg併用','マグゾール注'],
+  ], note:'カルシウム製剤の補給（低カルと同様）。抗生剤は不要。'},
 ];
+
+// 消炎剤の使い分け（共通リファレンス）
+const ANTIINF_GUIDE = `
+  <div style="border:1px solid var(--info);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg3);">
+    <div style="font-weight:700;font-size:12px;margin-bottom:5px;color:var(--info);">💉 消炎・解熱・鎮痛の使い分け</div>
+    <div style="font-size:11px;line-height:1.6;">
+      ・<b>メロキシカム2%</b>（NSAIDs）：1日1回・長時間作用。発熱・疼痛・慢性炎症に幅広く。第一選択<br>
+      ・<b>フルニキシン注5%＝フォーベット50</b>（同一成分・後発/先発の違いのみ、どちらか一方）：抗内毒素作用が強く速効。大腸菌性乳房炎・腸捻転・重度感染など内毒素血症を伴う急性重症に<br>
+      ・<b>ネオアス注射液</b>：軽〜中等度の発熱・疼痛の対症<br>
+      ・<b>プレドニン</b>（ステロイド）：中等度の抗炎症・抗アレルギー。皮膚炎・関節炎等。デキサより穏やか<br>
+      ・<b>水溶性デキサ「KS」</b>（ステロイド）：強力・即効。重症肺炎・ショック・強い炎症に短期限定。感染時は抗生剤併用、妊娠末期は分娩誘発に注意
+    </div>
+  </div>`;
+
+const ABX2_GUIDE = `
+  <div style="border:1px solid var(--info);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg3);">
+    <div style="font-weight:700;font-size:12px;margin-bottom:5px;color:var(--info);">🧫 抗生剤 2択の使い分け</div>
+    <div style="font-size:11px;line-height:1.6;">
+      ・<b>アンフェニコール系（フロルガン等） vs セフェム系（エクセネル）</b>：休薬が短いエクセネル（食肉12日・搾乳12h）は出荷が近い牛・泌乳牛に有利<br>
+      ・<b>ドラクシン vs チルモベット</b>：ドラクシンは単回長時間。チルモベットは皮下のみ・心毒性注意（人の誤注射に警戒）<br>
+      ・<b>マルボロック vs フォーシル</b>：どちらもキノロン。休薬が最短のフォーシル（食肉3日）は出荷直前の牛に<br>
+      ・<b>結晶ペニシリンG vs 懸濁性プロカインペニシリンG</b>：結晶は静注・即効/高濃度（急性重症）、プロカインは筋注・持続（維持・反復）<br>
+      ・<b>乳房炎の陰性/陽性</b>：大腸菌（陰性）→エクセネル/マルボ、連鎖球菌・黄ブ菌（陽性）→ペニシリンG
+    </div>
+  </div>`;
+
+function guideCardHtml(g) {
+  const levelColor = { first:'var(--accent)', next:'var(--info)', last:'var(--warn)', support:'var(--muted)', main:'var(--accent)' };
+  const rows = (g.sections||[]).map(s => `
+    <div style="display:flex;gap:8px;margin:3px 0;">
+      <span style="font-size:10px;color:${levelColor[s[0]]||'var(--muted)'};font-weight:700;white-space:nowrap;min-width:130px;">${s[1]}</span>
+      <span style="font-size:12px;flex:1;">${s[2]}</span>
+    </div>`).join('');
+  const head = g.abx
+    ? `<div style="font-weight:700;font-size:13px;margin-bottom:5px;">🦠 ${g.name}</div>`
+    : `<div style="font-weight:700;font-size:13px;margin-bottom:5px;">${g.name} <span style="font-size:10px;color:var(--muted);font-weight:400;">（抗生剤は基本不要）</span></div>`;
+  return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;">
+    ${head}${rows}
+    ${g.note?`<div style="font-size:10px;color:var(--muted);margin-top:5px;border-top:1px solid var(--border);padding-top:5px;">${g.note}</div>`:''}
+  </div>`;
+}
 
 function renderAbxGuide() {
   const el = document.getElementById('abx-guide-content');
   if (!el) return;
-  el.innerHTML = ABX_GUIDE.map(g => {
-    if (g.abx) {
-      const steps = g.steps.map((s,i) => `
-        <div style="display:flex;gap:8px;margin:3px 0;">
-          <span style="font-size:10px;color:${i===0?'var(--accent)':i===g.steps.length-1?'var(--warn)':'var(--info)'};font-weight:700;white-space:nowrap;min-width:120px;">${s[0]}</span>
-          <span style="font-size:12px;flex:1;">${s[1]}</span>
-        </div>`).join('');
-      return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;">
-        <div style="font-weight:700;font-size:13px;margin-bottom:5px;">🦠 ${g.name}</div>
-        ${steps}
-        ${g.note?`<div style="font-size:10px;color:var(--muted);margin-top:5px;border-top:1px solid var(--border);padding-top:5px;">${g.note}</div>`:''}
-      </div>`;
-    }
-    return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg3);">
-      <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${g.name} <span style="font-size:10px;color:var(--muted);font-weight:400;">（抗生剤は基本不要）</span></div>
-      <div style="font-size:11px;color:var(--muted);">${g.note}</div>
-    </div>`;
-  }).join('');
+  // 選択中の病名コードを取得
+  const code = document.getElementById('treat-disease-code')?.value || '';
+  const matched = code ? ABX_GUIDE.filter(g => g.code === code) : [];
+  if (matched.length) {
+    // 選択中の病名のガイドだけ表示（＋共通の使い分け参考）
+    const anyAbx = matched.some(g => g.abx);
+    el.innerHTML = matched.map(guideCardHtml).join('')
+      + (anyAbx ? ABX2_GUIDE : '') + ANTIINF_GUIDE
+      + `<div style="text-align:center;margin-top:6px;"><button onclick="showAllAbxGuide()" style="background:none;border:1px solid var(--border);color:var(--muted);border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;">全病名のガイドを見る</button></div>`;
+  } else {
+    showAllAbxGuide();
+  }
+}
+
+function showAllAbxGuide() {
+  const el = document.getElementById('abx-guide-content');
+  if (!el) return;
+  el.innerHTML = `<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">病名を選ぶと、その病名のガイドだけ表示されます。以下は全病名の一覧です。</div>`
+    + ABX_GUIDE.map(guideCardHtml).join('') + ABX2_GUIDE + ANTIINF_GUIDE;
 }
 
 function openDrugPicker(callback) { // 単一選択
